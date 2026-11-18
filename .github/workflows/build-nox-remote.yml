@@ -67,7 +67,21 @@ jobs:
           version: "6.12.*"
           host: 'windows'
           target: 'desktop'
-          modules: 'qtwebengine qtpositioning qtwebchannel qtwebsockets qtserialport'
+          modules: 'qtpositioning qtwebchannel qtwebsockets qtserialport'
+
+      - name: Qt WebEngine (connexion PSN integree)
+        continue-on-error: true
+        run: |
+          $qtroot = $env:QT_ROOT_DIR
+          $ver = Split-Path (Split-Path $qtroot -Parent) -Leaf
+          $out = Split-Path (Split-Path $qtroot -Parent) -Parent
+          echo "Qt $ver dans $out"
+          python -m aqt list-qt windows desktop --extensions $ver
+          python -m aqt list-qt windows desktop --modules $ver win64_msvc2022_64
+          python -m aqt install-qt windows desktop $ver win64_msvc2022_64 --outputdir $out --extensions qtwebengine qtpdf
+          if ($LASTEXITCODE -ne 0) { python -m aqt install-qt windows desktop $ver win64_msvc2022_64 --outputdir $out --extension qtwebengine }
+          if ($LASTEXITCODE -ne 0) { python -m aqt install-qt windows desktop $ver win64_msvc2022_64 --outputdir $out -m extensions.qtwebengine }
+          Get-ChildItem "$qtroot\bin\Qt6WebEngine*.dll" | Select-Object Name
 
       - name: Install pip dependencies
         run: |
