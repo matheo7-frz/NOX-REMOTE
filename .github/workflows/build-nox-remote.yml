@@ -15,6 +15,7 @@ jobs:
     env:
       CC: clang-cl.exe
       CXX: clang-cl.exe
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
       VULKAN_SDK: C:\VulkanSDK\
       triplet: x64-windows
       vcpkg_baseline: 42bb0d9e8d4cf33485afb9ee2229150f79f61a1f
