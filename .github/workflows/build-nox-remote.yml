@@ -67,21 +67,7 @@ jobs:
           version: "6.12.0"
           host: 'windows'
           target: 'desktop'
-          modules: 'qtpositioning qtwebchannel qtwebsockets qtserialport'
-
-      - name: Qt WebEngine (connexion PSN integree)
-        continue-on-error: true
-        run: |
-          $qtroot = $env:QT_ROOT_DIR
-          $ver = Split-Path (Split-Path $qtroot -Parent) -Leaf
-          $out = Split-Path (Split-Path $qtroot -Parent) -Parent
-          echo "Qt $ver dans $out"
-          python -m aqt list-qt windows desktop --extensions $ver
-          python -m aqt list-qt windows desktop --modules $ver win64_msvc2022_64
-          python -m aqt install-qt windows desktop $ver win64_msvc2022_64 --outputdir $out --extensions qtwebengine qtpdf
-          if ($LASTEXITCODE -ne 0) { python -m aqt install-qt windows desktop $ver win64_msvc2022_64 --outputdir $out --extension qtwebengine }
-          if ($LASTEXITCODE -ne 0) { python -m aqt install-qt windows desktop $ver win64_msvc2022_64 --outputdir $out -m extensions.qtwebengine }
-          Get-ChildItem "$qtroot\bin\Qt6WebEngine*.dll" | Select-Object Name
+          modules: 'qtwebengine qtpdf qtpositioning qtwebchannel qtwebsockets qtserialport'
 
       - name: Install pip dependencies
         run: |
@@ -119,14 +105,16 @@ jobs:
           cmake --build build --config Release
           cmake --install build
 
-      - name: Setup shaderc
+      - name: Setup shaderc (depuis le Vulkan SDK)
         run: |
-          $ProgressPreference = 'SilentlyContinue'
-          $url = ((Invoke-WebRequest -UseBasicParsing -Uri "https://storage.googleapis.com/shaderc/badges/build_link_windows_vs2019_release.html").Content | Select-String -Pattern 'url=(.*)"').Matches.Groups[1].Value
-          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile .\shaderc.zip
-          Expand-Archive -LiteralPath "shaderc.zip" -DestinationPath "."
-          cp "./install/*" "./${{ env.dep_folder }}" -Force -Recurse
-          rm "./install" -r -force
+          $d = "${{ github.workspace }}\${{ env.dep_folder }}"
+          New-Item -ItemType Directory -Force "$d\bin","$d\lib\pkgconfig","$d\include" | Out-Null
+          Copy-Item "${{ env.VULKAN_SDK }}Bin\shaderc_shared.dll" "$d\bin" -Force
+          Copy-Item "${{ env.VULKAN_SDK }}Lib\shaderc_shared.lib" "$d\lib" -Force
+          Copy-Item "${{ env.VULKAN_SDK }}Include\shaderc" "$d\include" -Recurse -Force
+          $p = $d -replace '\\','/'
+          "prefix=$p`nlibdir=`${prefix}/lib`nincludedir=`${prefix}/include`n`nName: shaderc`nDescription: shaderc`nVersion: 2026.1`nLibs: -L`${libdir} -lshaderc_shared`nCflags: -I`${includedir}" | Out-File -Encoding ascii "$d\lib\pkgconfig\shaderc.pc"
+          Get-Content "$d\lib\pkgconfig\shaderc.pc"
 
       - name: Make build directory
         run: |
