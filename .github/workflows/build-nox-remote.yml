@@ -19,7 +19,7 @@ jobs:
       VCPKG_KEEP_ENV_VARS: "CMAKE_POLICY_VERSION_MINIMUM"
       VULKAN_SDK: C:\VulkanSDK\
       triplet: x64-windows
-      vcpkg_baseline: 42bb0d9e8d4cf33485afb9ee2229150f79f61a1f
+      vcpkg_baseline: 9ee11c38b14f8d0c6cca9a0c6f8a5d6a0859867f
       dep_folder: deps
       libplacebo_tag: v7.387.0
       sdl2_compat_tag: 2.32.74
