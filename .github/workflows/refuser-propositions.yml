@@ -1,0 +1,33 @@
+name: Refuser les propositions
+
+# Ferme automatiquement tout ce que les autres proposent (Pull requests et Issues).
+# Seul matheo7-frz peut changer NOX REMOTE.
+on:
+  pull_request_target:
+    types: [opened, reopened]
+  issues:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  refuser:
+    if: github.actor != 'matheo7-frz'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fermer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          MSG="NOX REMOTE est un projet privé de math_0235 : aucune proposition n'est acceptée."
+          if [ -n "$PR" ]; then
+            gh pr close "$PR" -R "$REPO" --comment "$MSG"
+          else
+            gh issue close "$ISSUE" -R "$REPO" --comment "$MSG"
+            gh issue lock "$ISSUE" -R "$REPO" || true
+          fi

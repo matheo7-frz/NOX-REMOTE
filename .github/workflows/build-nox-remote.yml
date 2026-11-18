@@ -55,9 +55,15 @@ jobs:
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Setup Qt
         uses: jurplel/install-qt-action@v4
         with:
+          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git'
           version: "6.12.*"
           host: 'windows'
           target: 'desktop'
@@ -220,10 +226,16 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Empreinte SHA-256
+        run: |
+          $h = (Get-FileHash NOX-REMOTE-Installer.exe -Algorithm SHA256).Hash
+          "Installeur officiel NOX REMOTE - fait par math_0235`n`nSHA-256 : $h" | Out-File -Encoding utf8 notes.txt
+
       - name: Publier la version
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
           name: NOX REMOTE v${{ github.run_number }}
           files: NOX-REMOTE-Installer.exe
+          body_path: notes.txt
           make_latest: true
