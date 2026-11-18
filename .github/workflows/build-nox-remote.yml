@@ -207,7 +207,7 @@ jobs:
           retention-days: 7
 
       - name: Compile .ISS to .EXE Installer
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.9
+        uses: Minionguyjpro/Inno-Setup-Action@v1.3.0
         with:
           path: "scripts/chiaki-ng.iss"
           options: /O+
@@ -221,7 +221,7 @@ jobs:
           retention-days: 7
 
       - name: Publier la version
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ github.run_number }}
           name: NOX REMOTE v${{ github.run_number }}
