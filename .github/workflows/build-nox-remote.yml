@@ -214,8 +214,11 @@ jobs:
 
       - name: Compile .ISS to .EXE Installer
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/O${{ github.workspace }}" "${{ github.workspace }}\scripts\chiaki-ng.iss"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Push-Location scripts
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" chiaki-ng.iss
+          $code = $LASTEXITCODE
+          Pop-Location
+          if ($code -ne 0) { exit $code }
           Get-ChildItem NOX-REMOTE-Installer.exe
 
       - name: Upload chiaki-ng Artifact
