@@ -8,8 +8,9 @@ import org.streetpea.chiaking
 Pane {
     padding: 0
     id: consolePane
+    property bool noxHomeShown: true
     StackView.onActivated: {
-        forceActiveFocus(Qt.TabFocusReason);
+        if (noxHomeShown) noxHome.forceActiveFocus(Qt.TabFocusReason); else forceActiveFocus(Qt.TabFocusReason);
         if(!Chiaki.autoConnect && !root.initialAsk && !Chiaki.window.directStream)
         {
             root.initialAsk = true;
@@ -92,6 +93,16 @@ Pane {
                 font.pixelSize: 60
                 focusPolicy: Qt.NoFocus
                 onClicked: Qt.quit()
+                Material.roundedScale: Material.SmallScale
+            }
+
+            Button {
+                Layout.fillHeight: true
+                Layout.preferredWidth: 160
+                flat: true
+                text: qsTr("Accueil")
+                focusPolicy: Qt.NoFocus
+                onClicked: { consolePane.noxHomeShown = true; noxHome.forceActiveFocus(); }
                 Material.roundedScale: Material.SmallScale
             }
 
@@ -433,5 +444,13 @@ Pane {
             easing.type: Easing.OutCubic
             running: true
         }
+    }
+
+    NoxHome {
+        id: noxHome
+        anchors.fill: parent
+        z: 100
+        visible: consolePane.noxHomeShown
+        onShowConsoleList: { consolePane.noxHomeShown = false; consolePane.forceActiveFocus(); }
     }
 }

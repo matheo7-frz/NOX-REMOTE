@@ -1,24 +1,24 @@
-; Installeur NOX REMOTE - fait par math_0235
+; Installeur NOX REMOTE 2 - fait par math_0235
 Unicode true
 !include "MUI2.nsh"
 
-!define APPNAME "NOX REMOTE"
-!define EXENAME "NOX-REMOTE.exe"
-!define REGKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\NOX-REMOTE"
+!define APPNAME "NOX REMOTE 2"
+!define EXENAME "NOX-REMOTE-2.exe"
+!define REGKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\NOX-REMOTE-2"
 
 Name "${APPNAME}"
 OutFile "${OUTFILE}"
-InstallDir "$LOCALAPPDATA\Programs\NOX REMOTE"
+InstallDir "$LOCALAPPDATA\Programs\NOX REMOTE 2"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
 Icon "${ROOT}\gui\chiaking.ico"
 UninstallIcon "${ROOT}\gui\chiaking.ico"
-BrandingText "NOX REMOTE - fait par math_0235"
+BrandingText "NOX REMOTE 2 - fait par math_0235"
 
 !define MUI_ICON "${ROOT}\gui\chiaking.ico"
 !define MUI_UNICON "${ROOT}\gui\chiaking.ico"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${EXENAME}"
-!define MUI_FINISHPAGE_RUN_TEXT "Lancer NOX REMOTE"
+!define MUI_FINISHPAGE_RUN_TEXT "Lancer NOX REMOTE 2"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
@@ -29,14 +29,14 @@ BrandingText "NOX REMOTE - fait par math_0235"
 !insertmacro MUI_LANGUAGE "French"
 
 Section "Installer"
-  ; ferme NOX REMOTE s'il tourne (mise à jour)
+  ; ferme NOX REMOTE 2 s'il tourne (mise à jour)
   nsExec::Exec 'taskkill /F /IM ${EXENAME}'
   SetOutPath "$INSTDIR"
   File /r "${APPDIR}\*.*"
   WriteUninstaller "$INSTDIR\Desinstaller.exe"
-  CreateDirectory "$SMPROGRAMS\NOX REMOTE"
-  CreateShortcut "$SMPROGRAMS\NOX REMOTE\NOX REMOTE.lnk" "$INSTDIR\${EXENAME}"
-  CreateShortcut "$DESKTOP\NOX REMOTE.lnk" "$INSTDIR\${EXENAME}"
+  CreateDirectory "$SMPROGRAMS\NOX REMOTE 2"
+  CreateShortcut "$SMPROGRAMS\NOX REMOTE 2\NOX REMOTE 2.lnk" "$INSTDIR\${EXENAME}"
+  CreateShortcut "$DESKTOP\NOX REMOTE 2.lnk" "$INSTDIR\${EXENAME}"
   WriteRegStr HKCU "${REGKEY}" "DisplayName" "${APPNAME}"
   WriteRegStr HKCU "${REGKEY}" "Publisher" "math_0235"
   WriteRegStr HKCU "${REGKEY}" "DisplayIcon" "$INSTDIR\${EXENAME}"
@@ -47,8 +47,8 @@ SectionEnd
 
 Section "Uninstall"
   nsExec::Exec 'taskkill /F /IM ${EXENAME}'
-  Delete "$DESKTOP\NOX REMOTE.lnk"
-  RMDir /r "$SMPROGRAMS\NOX REMOTE"
+  Delete "$DESKTOP\NOX REMOTE 2.lnk"
+  RMDir /r "$SMPROGRAMS\NOX REMOTE 2"
   RMDir /r "$INSTDIR"
   DeleteRegKey HKCU "${REGKEY}"
 SectionEnd

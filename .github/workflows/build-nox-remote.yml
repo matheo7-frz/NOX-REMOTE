@@ -187,7 +187,7 @@ jobs:
           cp "${{ github.workspace }}\${{ env.dep_folder }}\bin\shaderc_shared.dll" chiaki-ng-Win
           cp "${{ github.workspace }}\${{ env.dep_folder }}\bin\spirv-cross-c-shared.dll" chiaki-ng-Win
           windeployqt.exe --no-translations --qmldir=gui\src\qml --release chiaki-ng-Win\chiaki.exe
-          Rename-Item chiaki-ng-Win\chiaki.exe NOX-REMOTE.exe
+          Rename-Item chiaki-ng-Win\chiaki.exe NOX-REMOTE-2.exe
 
       - name: Verifier qu'il n'y a pas de WebEngine
         run: |
@@ -217,31 +217,31 @@ jobs:
           $mk = (Get-ChildItem "C:\Program Files (x86)\NSIS\makensis.exe","C:\Program Files\NSIS\makensis.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
           if (-not $mk) { choco install nsis -y --no-progress; $mk = (Get-ChildItem "C:\Program Files (x86)\NSIS\makensis.exe").FullName }
           echo "makensis: $mk"
-          & $mk "/DROOT=${{ github.workspace }}" "/DAPPDIR=${{ github.workspace }}\chiaki-ng-Win" "/DOUTFILE=${{ github.workspace }}\NOX-REMOTE-Installer.exe" "${{ github.workspace }}\scripts\nox-remote.nsi"
+          & $mk "/DROOT=${{ github.workspace }}" "/DAPPDIR=${{ github.workspace }}\chiaki-ng-Win" "/DOUTFILE=${{ github.workspace }}\NOX-REMOTE-2-Installer.exe" "${{ github.workspace }}\scripts\nox-remote.nsi"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item $env:RELEASE_PACKAGE_PATH NOX-REMOTE-Portable.zip
-          Get-ChildItem NOX-REMOTE-Installer.exe, NOX-REMOTE-Portable.zip
+          Copy-Item $env:RELEASE_PACKAGE_PATH NOX-REMOTE-2-Portable.zip
+          Get-ChildItem NOX-REMOTE-2-Installer.exe, NOX-REMOTE-2-Portable.zip
 
       - name: Upload chiaki-ng Artifact
         uses: actions/upload-artifact@v7
         with:
           name: chiaki-ng-win_x64-VC-installer.zip
-          path: NOX-REMOTE-Installer.exe
+          path: NOX-REMOTE-2-Installer.exe
           if-no-files-found: error
           retention-days: 7
 
       - name: Empreinte SHA-256
         run: |
-          $h = (Get-FileHash NOX-REMOTE-Installer.exe -Algorithm SHA256).Hash
-          "Installeur officiel NOX REMOTE - fait par math_0235`n`nSHA-256 : $h" | Out-File -Encoding utf8 notes.txt
+          $h = (Get-FileHash NOX-REMOTE-2-Installer.exe -Algorithm SHA256).Hash
+          "Installeur officiel NOX REMOTE 2 (nouvelle interface) - s'installe a cote de NOX REMOTE v19 sans la remplacer - fait par math_0235`n`nSHA-256 : $h" | Out-File -Encoding utf8 notes.txt
 
       - name: Publier la version
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.run_number }}
-          name: NOX REMOTE v${{ github.run_number }}
+          tag_name: v2.${{ github.run_number }}
+          name: NOX REMOTE 2 (nouvelle interface) v2.${{ github.run_number }}
           files: |
-            NOX-REMOTE-Installer.exe
-            NOX-REMOTE-Portable.zip
+            NOX-REMOTE-2-Installer.exe
+            NOX-REMOTE-2-Portable.zip
           body_path: notes.txt
           make_latest: true

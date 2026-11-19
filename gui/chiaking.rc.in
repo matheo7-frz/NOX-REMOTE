@@ -23,12 +23,12 @@ BEGIN
         BEGIN
             VALUE "Comments", "fait par math_0235"
             VALUE "CompanyName", "math_0235"
-            VALUE "FileDescription", "NOX REMOTE"
+            VALUE "FileDescription", "NOX REMOTE 2"
             VALUE "FileVersion", VER_FILEVERSION_STR
-            VALUE "InternalName", "NOX REMOTE"
+            VALUE "InternalName", "NOX REMOTE 2"
             VALUE "LegalCopyright", "AGPLv3 - moteur chiaki-ng (Street Pea) - fait par math_0235"
-            VALUE "OriginalFilename", "NOX-REMOTE.exe"
-            VALUE "ProductName", "NOX REMOTE"
+            VALUE "OriginalFilename", "NOX-REMOTE-2.exe"
+            VALUE "ProductName", "NOX REMOTE 2"
             VALUE "ProductVersion", VER_PRODUCTVERSION_STR
         END
     END
