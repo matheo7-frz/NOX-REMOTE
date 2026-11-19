@@ -214,11 +214,16 @@ jobs:
 
       - name: Compile .ISS to .EXE Installer
         run: |
-          Push-Location scripts
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" chiaki-ng.iss
-          $code = $LASTEXITCODE
-          Pop-Location
-          if ($code -ne 0) { exit $code }
+          $env:NOX_ROOT = "${{ github.workspace }}"
+          $env:NOX_APP_DIR = "${{ github.workspace }}\chiaki-ng-Win"
+          Test-Path "$env:NOX_APP_DIR\NOX-REMOTE.exe"
+          Test-Path "$env:NOX_ROOT\gui\chiaking.ico"
+          Test-Path "$env:NOX_ROOT\LICENSES\AGPL-3.0-only-OpenSSL.txt"
+          $iscc = (Get-ChildItem "C:\Program Files (x86)\Inno Setup *\ISCC.exe","C:\Program Files\Inno Setup *\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $iscc) { choco install innosetup -y --no-progress; $iscc = (Get-ChildItem "C:\Program Files (x86)\Inno Setup *\ISCC.exe").FullName }
+          echo "ISCC: $iscc"
+          & $iscc "${{ github.workspace }}\scripts\chiaki-ng.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Get-ChildItem NOX-REMOTE-Installer.exe
 
       - name: Upload chiaki-ng Artifact
