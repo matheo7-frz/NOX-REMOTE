@@ -66,7 +66,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           aqtsource: 'git+https://github.com/miurahr/aqtinstall.git'
-          version: "6.12.0"
+          version: "6.12.1"
           host: 'windows'
           target: 'desktop'
           modules: 'qtwebengine qtpdf qtpositioning qtwebchannel qtwebsockets qtserialport'
@@ -189,6 +189,13 @@ jobs:
           cp "${{ github.workspace }}\${{ env.dep_folder }}\bin\spirv-cross-c-shared.dll" chiaki-ng-Win
           windeployqt.exe --no-translations --qmldir=gui\src\qml --release chiaki-ng-Win\chiaki.exe
           Rename-Item chiaki-ng-Win\chiaki.exe NOX-REMOTE.exe
+
+      - name: Verifier les versions Qt
+        run: |
+          $g = (Get-Item chiaki-ng-Win\Qt6Gui.dll).VersionInfo.ProductVersion
+          $w = (Get-Item chiaki-ng-Win\Qt6WebEngineCore.dll).VersionInfo.ProductVersion
+          echo "Qt6Gui=$g  Qt6WebEngineCore=$w"
+          if ($g -ne $w) { echo "Versions Qt differentes"; exit 1 }
 
       - name: Package chiaki-ng
         run: |
