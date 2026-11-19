@@ -209,10 +209,10 @@ jobs:
           retention-days: 7
 
       - name: Compile .ISS to .EXE Installer
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.9
-        with:
-          path: "scripts/chiaki-ng.iss"
-          options: /O+
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/O${{ github.workspace }}" "${{ github.workspace }}\scripts\chiaki-ng.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem NOX-REMOTE-Installer.exe
 
       - name: Upload chiaki-ng Artifact
         uses: actions/upload-artifact@v7
