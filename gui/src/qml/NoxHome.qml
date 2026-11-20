@@ -1,5 +1,6 @@
 // Accueil NOX REMOTE 2 - fait par math_0235
 import QtQuick
+import QtCore
 import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Controls.Material
@@ -14,6 +15,31 @@ Rectangle {
         GradientStop { position: 0.0; color: "#0b1530" }
         GradientStop { position: 0.55; color: "#060b1c" }
         GradientStop { position: 1.0; color: "#020409" }
+    }
+
+    Settings {
+        id: livePrefs
+        category: "noxremote"
+        property bool liveMode: false
+    }
+
+    // Réglages stables pour OBS / TikTok Live Studio / Discord
+    function applyLiveMode(on) {
+        livePrefs.liveMode = on;
+        Chiaki.settings.streamerMode = on;          // cache IP / identifiants à l'écran
+        if (!on)
+            return;
+        Chiaki.settings.showStreamStats = false;    // pas de stats par-dessus l'image
+        Chiaki.settings.hideCursor = true;          // pas de curseur dans le live
+        Chiaki.settings.vSyncEnabled = true;        // image sans déchirure
+        Chiaki.settings.windowType = 0;             // fenêtre de taille fixe = capture stable
+        Chiaki.settings.resolutionLocalPS5 = 4;     // 1080p
+        Chiaki.settings.fpsLocalPS5 = 60;
+        Chiaki.settings.resolutionRemotePS5 = 4;
+        Chiaki.settings.fpsRemotePS5 = 60;
+        Chiaki.settings.codecLocalPS5 = 1;          // H265 sans HDR (le HDR rend l'image délavée dans OBS)
+        Chiaki.settings.codecRemotePS5 = 1;
+        Chiaki.settings.fpsLocalPS4 = 60;
     }
 
     // ---------- Recherche de la console ----------
@@ -64,6 +90,22 @@ Rectangle {
             Chiaki.connectToHost(i);
     }
 
+    Rectangle {
+        id: glow
+        width: parent.width * 0.9
+        height: width
+        radius: width / 2
+        anchors.centerIn: parent
+        color: "#1b3a8a"
+        opacity: 0.22
+        scale: 0.6
+        SequentialAnimation on scale {
+            loops: Animation.Infinite
+            NumberAnimation { to: 0.7; duration: 4000; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 0.6; duration: 4000; easing.type: Easing.InOutSine }
+        }
+    }
+
     Keys.onLeftPressed: ps5Tile.forceActiveFocus()
     Keys.onRightPressed: ps4Tile.forceActiveFocus()
     Keys.onMenuPressed: root.showSettingsDialog()
@@ -111,6 +153,36 @@ Rectangle {
             Material.roundedScale: Material.FullScale
         }
 
+        Rectangle {
+            visible: livePrefs.liveMode
+            Layout.preferredHeight: 34
+            Layout.preferredWidth: liveBadge.implicitWidth + 28
+            radius: 17
+            color: "#e0203c"
+            Label {
+                id: liveBadge
+                anchors.centerIn: parent
+                text: "● MODE LIVE"
+                font.pixelSize: 14
+                font.bold: true
+                color: "white"
+            }
+            SequentialAnimation on opacity {
+                running: livePrefs.liveMode
+                loops: Animation.Infinite
+                NumberAnimation { to: 0.65; duration: 900; easing.type: Easing.InOutSine }
+                NumberAnimation { to: 1.0; duration: 900; easing.type: Easing.InOutSine }
+            }
+        }
+
+        TopButton {
+            text: livePrefs.liveMode ? qsTr("Live : ON") : qsTr("Mode Live")
+            onClicked: home.applyLiveMode(!livePrefs.liveMode)
+        }
+        TopButton {
+            text: qsTr("Guide Live")
+            onClicked: liveGuide.open()
+        }
         TopButton {
             text: qsTr("Consoles")
             onClicked: home.showConsoleList()
@@ -194,12 +266,20 @@ Rectangle {
                         font.bold: true
                         color: "white"
                     }
-                    Label {
+                    RowLayout {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.bottomMargin: 18
-                        text: { Chiaki.hosts; return tile.page ? tile.page.statusText(tile.ps5) : ""; }
-                        font.pixelSize: 15
-                        color: "#9fb0d8"
+                        spacing: 8
+                        Rectangle {
+                            width: 10; height: 10; radius: 5
+                            color: { Chiaki.hosts; var t = tile.page ? tile.page.statusText(tile.ps5) : "";
+                                     return t.indexOf("Allumée") === 0 ? "#2ee66b" : (t.indexOf("En veille") === 0 ? "#f5a623" : (t.indexOf("Aucune") === 0 ? "#e0203c" : "#5aa0ff")); }
+                        }
+                        Label {
+                            text: { Chiaki.hosts; return tile.page ? tile.page.statusText(tile.ps5) : ""; }
+                            font.pixelSize: 15
+                            color: "#9fb0d8"
+                        }
                     }
                 }
             }
@@ -229,6 +309,57 @@ Rectangle {
         text: "NOX REMOTE 2 · fait par math_0235"
         font.pixelSize: 13
         color: "#5d6c94"
+    }
+
+    Popup {
+        id: liveGuide
+        anchors.centerIn: parent
+        width: Math.min(parent.width * 0.86, 980)
+        height: Math.min(parent.height * 0.86, 720)
+        modal: true
+        focus: true
+        padding: 28
+        background: Rectangle { radius: 20; color: "#0d1733"; border.color: "#2c3c66"; border.width: 1 }
+        onClosed: ps5Tile.forceActiveFocus()
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 14
+            RowLayout {
+                Layout.fillWidth: true
+                Label { text: qsTr("Guide Live - sans coupure"); font.pixelSize: 26; font.bold: true; color: "white"; Layout.fillWidth: true }
+                Button { text: "✕"; flat: true; Material.foreground: "white"; onClicked: liveGuide.close() }
+            }
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                Label {
+                    width: liveGuide.availableWidth - 20
+                    wrapMode: Text.WordWrap
+                    textFormat: Text.RichText
+                    color: "#dbe4ff"
+                    font.pixelSize: 16
+                    text: qsTr("<h3>Avant de lancer le live</h3>"
+                        + "<ul><li>Clique sur <b>Mode Live</b> en haut : 1080p 60 i/s, pas de HDR, image sans déchirure, IP cachée, pas de curseur.</li>"
+                        + "<li>Branche le PC <b>et</b> la PS5 en <b>câble Ethernet</b> si possible : c'est ce qui évite le plus les coupures.</li>"
+                        + "<li>Ferme les téléchargements (Steam, mises à jour PS5...) pendant le live.</li>"
+                        + "<li>Ne change pas la taille de la fenêtre NOX REMOTE 2 pendant le live.</li></ul>"
+                        + "<h3>OBS</h3>"
+                        + "<ul><li>Source <b>Capture de fenêtre</b> → fenêtre <b>[NOX-REMOTE-2.exe] NOX REMOTE 2</b>.</li>"
+                        + "<li>Méthode de capture : <b>Windows 10 (1903 et plus)</b>. Correspondance : <b>même exécutable</b>.</li>"
+                        + "<li>Son : source <b>Capture audio d'application</b> → NOX-REMOTE-2.exe.</li></ul>"
+                        + "<h3>TikTok Live Studio</h3>"
+                        + "<ul><li>Ajouter une source → <b>Fenêtre</b> → <b>NOX REMOTE 2</b>.</li>"
+                        + "<li>Son : ajoute l'audio de l'application / audio du PC.</li></ul>"
+                        + "<h3>Discord</h3>"
+                        + "<ul><li>Partager ton écran → onglet <b>Applications</b> → <b>NOX REMOTE 2</b>, son activé.</li></ul>"
+                        + "<h3>Si ça coupe quand même</h3>"
+                        + "<ul><li>Réglages ⚙️ → baisse le <b>débit (bitrate)</b> ou passe en <b>720p</b>.</li>"
+                        + "<li>Si l'écran est noir dans OBS : change la méthode de capture, ou lance OBS en même temps que NOX REMOTE 2 (pas en administrateur).</li></ul>")
+                }
+            }
+        }
     }
 
     Component.onCompleted: ps5Tile.forceActiveFocus()

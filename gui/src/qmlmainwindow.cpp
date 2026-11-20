@@ -2883,7 +2883,7 @@ void QmlMainWindow::setSettings(Settings *new_settings)
     if(profile.isEmpty())
         QGuiApplication::setApplicationDisplayName("NOX REMOTE 2");
     else
-        QGuiApplication::setApplicationDisplayName(QString("NOX REMOTE:%1").arg(profile));
+        QGuiApplication::setApplicationDisplayName("NOX REMOTE 2");
     this->setTitle(QGuiApplication::applicationDisplayName());
 }
 
