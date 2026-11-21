@@ -71,6 +71,32 @@ jobs:
           target: 'desktop'
           modules: 'qtpositioning qtwebchannel qtwebsockets qtserialport'
 
+      - name: Petite page Sony integree (Qt WebEngine, seulement si compatible)
+        id: webengine
+        continue-on-error: true
+        run: |
+          $qtroot = $env:QT_ROOT_DIR
+          $ver = Split-Path (Split-Path $qtroot -Parent) -Leaf
+          $out = Split-Path (Split-Path $qtroot -Parent) -Parent
+          python -m aqt install-qt windows desktop $ver win64_msvc2022_64 --outputdir $out -m qtwebengine qtpdf
+          $g = (Get-Item "$qtroot\bin\Qt6Gui.dll").VersionInfo.ProductVersion
+          $w = (Get-Item "$qtroot\bin\Qt6WebEngineCore.dll" -ErrorAction SilentlyContinue).VersionInfo.ProductVersion
+          echo "Qt6Gui=$g  Qt6WebEngineCore=$w"
+          # Test reel : toutes les fonctions dont WebEngine a besoin existent-elles dans les DLL Qt ?
+          $ok = $true
+          if (-not $w -or $g -ne $w) { $ok = $false }
+          if ($ok) {
+            python -m pip install --quiet pefile
+            python scripts\check_qt_abi.py "$qtroot\bin"
+            if ($LASTEXITCODE -ne 0) { $ok = $false }
+          }
+          if (-not $ok) {
+            echo "WebEngine pas compatible -> on le retire (connexion PSN dans le navigateur)"
+            Remove-Item -Recurse -Force "$qtroot\lib\cmake\Qt6WebEngine*","$qtroot\bin\Qt6WebEngine*","$qtroot\bin\QtWebEngineProcess*","$qtroot\qml\QtWebEngine" -ErrorAction SilentlyContinue
+            exit 1
+          }
+          echo "WebEngine OK"
+
       - name: Install pip dependencies
         run: |
           ${{ env.pythonLocation }}\python.exe -m pip install --upgrade pip
@@ -117,6 +143,10 @@ jobs:
           $p = $d -replace '\\','/'
           "prefix=$p`nlibdir=`${prefix}/lib`nincludedir=`${prefix}/include`n`nName: shaderc`nDescription: shaderc`nVersion: 2026.1`nLibs: -L`${libdir} -lshaderc_shared`nCflags: -I`${includedir}" | Out-File -Encoding ascii "$d\lib\pkgconfig\shaderc.pc"
           Get-Content "$d\lib\pkgconfig\shaderc.pc"
+
+      - name: Import WebEngine pour le deploiement
+        if: steps.webengine.outcome == 'success'
+        run: cp scripts\qtwebengine_import.qml gui\src\qml\
 
       - name: Make build directory
         run: |
@@ -189,10 +219,14 @@ jobs:
           windeployqt.exe --no-translations --qmldir=gui\src\qml --release chiaki-ng-Win\chiaki.exe
           Rename-Item chiaki-ng-Win\chiaki.exe NOX-REMOTE-2.exe
 
-      - name: Verifier qu'il n'y a pas de WebEngine
+      - name: Verifier les versions Qt (anti-plantage)
         run: |
-          if (Test-Path chiaki-ng-Win\Qt6WebEngineCore.dll) { echo "WebEngine present"; exit 1 }
-          echo OK
+          if (Test-Path chiaki-ng-Win\Qt6WebEngineCore.dll) {
+            $g = (Get-Item chiaki-ng-Win\Qt6Gui.dll).VersionInfo.ProductVersion
+            $w = (Get-Item chiaki-ng-Win\Qt6WebEngineCore.dll).VersionInfo.ProductVersion
+            echo "Qt6Gui=$g  Qt6WebEngineCore=$w"
+            if ($g -ne $w) { echo "Versions Qt differentes"; exit 1 }
+          } else { echo "Sans WebEngine" }
 
       - name: Package chiaki-ng
         run: |

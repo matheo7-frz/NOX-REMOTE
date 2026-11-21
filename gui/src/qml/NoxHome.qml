@@ -78,8 +78,8 @@ Rectangle {
         var i = findHost(wantPs5);
         if (i < 0) {
             infoLabel.text = wantPs5
-                ? qsTr("Aucune PS5 trouvée. Allume ta PS5 sur le même Wi-Fi, ou ajoute-la dans « Consoles ».")
-                : qsTr("Aucune PS4 trouvée. Allume ta PS4 sur le même Wi-Fi, ou ajoute-la dans « Consoles ».");
+                ? qsTr("Aucune PS5 trouvée. Allume ta PS5 sur le même réseau, ou ajoute-la avec « Gérer mes consoles » en bas à droite.")
+                : qsTr("Aucune PS4 trouvée. Allume ta PS4 sur le même réseau, ou ajoute-la avec « Gérer mes consoles » en bas à droite.");
             return;
         }
         var h = Chiaki.hosts[i];
@@ -184,10 +184,6 @@ Rectangle {
             onClicked: liveGuide.open()
         }
         TopButton {
-            text: qsTr("Consoles")
-            onClicked: home.showConsoleList()
-        }
-        TopButton {
             text: qsTr("Manette")
             onClicked: root.showControllerMappingDialog()
         }
@@ -248,27 +244,21 @@ Rectangle {
                     Behavior on color { ColorAnimation { duration: 120 } }
                 }
 
-                contentItem: ColumnLayout {
-                    spacing: 10
-                    Image {
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.fillHeight: true
-                        Layout.preferredWidth: tile.width * 0.55
-                        Layout.topMargin: 20
-                        fillMode: Image.PreserveAspectFit
-                        source: "image://svg/console-ps" + (tile.ps5 ? "5" : "4") + "#light_on"
-                        sourceSize: Qt.size(width, height)
-                    }
+                contentItem: Item {
                     Label {
-                        Layout.alignment: Qt.AlignHCenter
+                        anchors.centerIn: parent
+                        anchors.verticalCenterOffset: -14
                         text: tile.ps5 ? "PS5" : "PS4"
-                        font.pixelSize: 40
-                        font.bold: true
+                        font.pixelSize: Math.max(56, tile.height * 0.28)
+                        font.weight: Font.Black
+                        font.letterSpacing: 6
                         color: "white"
+                        opacity: tile.hovered || tile.activeFocus ? 1.0 : 0.9
                     }
                     RowLayout {
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.bottomMargin: 18
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 22
                         spacing: 8
                         Rectangle {
                             width: 10; height: 10; radius: 5
@@ -298,6 +288,16 @@ Rectangle {
             font.pixelSize: 16
             color: "#c8d3f0"
         }
+    }
+
+    Button {
+        anchors { bottom: parent.bottom; right: parent.right; rightMargin: 22; bottomMargin: 8 }
+        flat: true
+        focusPolicy: Qt.NoFocus
+        text: qsTr("Gérer mes consoles")
+        font.pixelSize: 13
+        Material.foreground: "#7d8bb3"
+        onClicked: home.showConsoleList()
     }
 
     Label {
