@@ -78,23 +78,15 @@ jobs:
           $qtroot = $env:QT_ROOT_DIR
           $ver = Split-Path (Split-Path $qtroot -Parent) -Leaf
           $out = Split-Path (Split-Path $qtroot -Parent) -Parent
+          $arch = Split-Path $qtroot -Leaf
+          # 1) essai dans un dossier a part (le vrai Qt n'est jamais touche si ca ne va pas)
+          python -m aqt install-qt windows desktop $ver win64_msvc2022_64 --outputdir C:\qt-essai -m qtwebengine qtpdf
+          $test = "C:\qt-essai\$ver\$arch\bin"
+          python -m pip install --quiet pefile
+          python scripts\check_qt_abi.py $test
+          if ($LASTEXITCODE -ne 0) { echo "WebEngine pas compatible -> connexion PSN dans le navigateur"; exit 1 }
+          # 2) compatible : installation pour de vrai
           python -m aqt install-qt windows desktop $ver win64_msvc2022_64 --outputdir $out -m qtwebengine qtpdf
-          $g = (Get-Item "$qtroot\bin\Qt6Gui.dll").VersionInfo.ProductVersion
-          $w = (Get-Item "$qtroot\bin\Qt6WebEngineCore.dll" -ErrorAction SilentlyContinue).VersionInfo.ProductVersion
-          echo "Qt6Gui=$g  Qt6WebEngineCore=$w"
-          # Test reel : toutes les fonctions dont WebEngine a besoin existent-elles dans les DLL Qt ?
-          $ok = $true
-          if (-not $w -or $g -ne $w) { $ok = $false }
-          if ($ok) {
-            python -m pip install --quiet pefile
-            python scripts\check_qt_abi.py "$qtroot\bin"
-            if ($LASTEXITCODE -ne 0) { $ok = $false }
-          }
-          if (-not $ok) {
-            echo "WebEngine pas compatible -> on le retire (connexion PSN dans le navigateur)"
-            Remove-Item -Recurse -Force "$qtroot\lib\cmake\Qt6WebEngine*","$qtroot\bin\Qt6WebEngine*","$qtroot\bin\QtWebEngineProcess*","$qtroot\qml\QtWebEngine" -ErrorAction SilentlyContinue
-            exit 1
-          }
           echo "WebEngine OK"
 
       - name: Install pip dependencies
