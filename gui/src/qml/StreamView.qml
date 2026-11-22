@@ -153,6 +153,8 @@ Item {
 
         Image {
             id: noxLoadingWallpaper
+            smooth: true
+            mipmap: true
             anchors.fill: parent
             source: "qrc:/icons/noxremote-loading.jpg"
             fillMode: Image.PreserveAspectCrop

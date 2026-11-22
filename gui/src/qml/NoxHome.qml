@@ -93,6 +93,8 @@ Rectangle {
     // Même fond d'écran que l'écran de chargement
     Image {
         id: homeWallpaper
+        smooth: true
+        mipmap: true
         anchors.fill: parent
         source: "qrc:/icons/noxremote-loading.jpg"
         fillMode: Image.PreserveAspectCrop
