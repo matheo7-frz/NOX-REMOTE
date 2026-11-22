@@ -28,6 +28,12 @@ extern "C" {
 #include <QThread>
 #include <QShortcut>
 #include <QStandardPaths>
+#include <QScreen>
+#include <QPixmap>
+#include <QDir>
+#include <QDateTime>
+#include <QDesktopServices>
+#include <QUrl>
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QFile>
@@ -7651,6 +7657,13 @@ bool QmlMainWindow::handleShortcut(QKeyEvent *event)
 {
     if (event->modifiers() == Qt::NoModifier) {
         switch (event->key()) {
+        case Qt::Key_F4:
+        case Qt::Key_F10:
+            emit menuRequested();
+            return true;
+        case Qt::Key_F12:
+            emit screenshotRequested();
+            return true;
         case Qt::Key_F11:
             if (windowState() != Qt::WindowFullScreen)
                 fullscreenTime();
@@ -7681,6 +7694,9 @@ bool QmlMainWindow::handleShortcut(QKeyEvent *event)
     case Qt::Key_O:
         emit menuRequested();
         return true;
+    case Qt::Key_P:
+        emit screenshotRequested();
+        return true;
     case Qt::Key_Q:
 #ifndef Q_OS_MACOS
         close();
@@ -7699,6 +7715,44 @@ bool QmlMainWindow::amdCard() const
 bool QmlMainWindow::nvidiaCard() const
 {
     return nvidia_card;
+}
+
+static QString noxCaptureDir()
+{
+    QString base = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    if (base.isEmpty())
+        base = QDir::homePath();
+    return QDir(base).filePath(QStringLiteral("Nox Remote Capture"));
+}
+
+void QmlMainWindow::takeScreenshot()
+{
+    QScreen *scr = screen();
+    if (!scr) {
+        emit screenshotFailed();
+        return;
+    }
+    // Capture de la zone de la fenêtre telle qu'elle est affichée (image du jeu comprise)
+    const QPoint topLeft = mapToGlobal(QPoint(0, 0)) - scr->geometry().topLeft();
+    QPixmap shot = scr->grabWindow(0, topLeft.x(), topLeft.y(), width(), height());
+    if (shot.isNull()) {
+        emit screenshotFailed();
+        return;
+    }
+    const QString dir = noxCaptureDir();
+    QDir().mkpath(dir);
+    const QString path = QDir(dir).filePath(QStringLiteral("NOX_%1.png").arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss-zzz"))));
+    if (shot.save(path, "PNG"))
+        emit screenshotSaved(path);
+    else
+        emit screenshotFailed();
+}
+
+void QmlMainWindow::openCaptureFolder()
+{
+    const QString dir = noxCaptureDir();
+    QDir().mkpath(dir);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
 }
 
 bool QmlMainWindow::event(QEvent *event)

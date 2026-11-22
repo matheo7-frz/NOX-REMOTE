@@ -147,6 +147,8 @@ public:
     void setVideoPreset(VideoPreset mode);
 
     Q_INVOKABLE void grabInput();
+    Q_INVOKABLE void takeScreenshot();
+    Q_INVOKABLE void openCaptureFolder();
     Q_INVOKABLE void releaseInput();
     Q_INVOKABLE void requestOverlayUpdate();
     Q_INVOKABLE void setOverlayInteractionActive(bool active);
@@ -177,6 +179,9 @@ signals:
     void zoomFactorChanged();
     void videoPresetChanged();
     void menuRequested();
+    void screenshotRequested();
+    void screenshotSaved(const QString &path);
+    void screenshotFailed();
     void directStreamChanged();
     void queueDepthAverageChanged();
     void pendingFrameAgeChanged();

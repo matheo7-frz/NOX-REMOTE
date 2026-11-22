@@ -70,6 +70,11 @@ QmlController::QmlController(Controller *c, uint32_t shortcut, QObject *t, QObje
         if ((old_buttons & escape_shortcut) == escape_shortcut && (buttons & escape_shortcut) != escape_shortcut)
             sendKey(Qt::Key_O, Qt::ControlModifier);
 
+        // NOX REMOTE : Create (Share) + clic du pavé tactile = capture d'écran
+        const uint32_t nox_capture = CHIAKI_CONTROLLER_BUTTON_SHARE | CHIAKI_CONTROLLER_BUTTON_TOUCHPAD;
+        if ((old_buttons & nox_capture) == nox_capture && (buttons & nox_capture) != nox_capture)
+            sendKey(Qt::Key_P, Qt::ControlModifier);
+
         old_buttons = buttons;
     });
 }

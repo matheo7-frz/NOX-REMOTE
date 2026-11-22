@@ -535,6 +535,35 @@ Item {
                 Layout.rightMargin: -10
             }
 
+            ToolButton {
+                id: captureButton
+                Layout.rightMargin: 6
+                text: qsTr("Capture")
+                padding: 10
+                focusPolicy: Qt.StrongFocus
+                onClicked: Chiaki.window.screenshotRequested()
+                Keys.onReturnPressed: clicked()
+                Keys.onEscapePressed: menuController.close()
+            }
+
+            ColumnLayout {
+                Layout.rightMargin: 14
+                spacing: 2
+                Label {
+                    text: qsTr("Micro")
+                    font.pixelSize: 12
+                    opacity: 0.8
+                }
+                ComboBox {
+                    id: micCombo
+                    Layout.preferredWidth: 230
+                    model: [qsTr("Auto (par défaut)")].concat(Chiaki.settings.availableAudioInDevices)
+                    currentIndex: Math.max(0, model.indexOf(Chiaki.settings.audioInDevice))
+                    onActivated: (index) => Chiaki.settings.audioInDevice = index ? model[index] : ""
+                    Keys.onEscapePressed: menuController.close()
+                }
+            }
+
             Slider {
                 id: brightnessSlider
                 Layout.rightMargin: 20
@@ -886,6 +915,53 @@ Item {
         opacity: noxPrefs.brightness < 50 ? (50 - noxPrefs.brightness) / 50 * 0.85
                                           : (noxPrefs.brightness - 50) / 50 * 0.35
         visible: opacity > 0.001 && !!Chiaki.session
+    }
+
+    Timer {
+        id: noxShootTimer
+        repeat: false
+        onTriggered: Chiaki.window.takeScreenshot()
+    }
+
+    // Un clic sur l'image ferme la barre du bas
+    MouseArea {
+        anchors.fill: parent
+        visible: !useSeparateMenuWindow && menuController.open
+        enabled: visible
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onClicked: menuController.close()
+    }
+
+    Rectangle {
+        id: noxToast
+        z: 1000
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 28
+        radius: 14
+        color: "#e6101a33"
+        border.color: "#3a4f86"
+        border.width: 1
+        width: noxToastLabel.implicitWidth + 40
+        height: noxToastLabel.implicitHeight + 22
+        opacity: 0
+        visible: opacity > 0
+        function show(t) {
+            noxToastLabel.text = t;
+            noxToastAnim.restart();
+        }
+        Label {
+            id: noxToastLabel
+            anchors.centerIn: parent
+            color: "white"
+            font.pixelSize: 17
+        }
+        SequentialAnimation {
+            id: noxToastAnim
+            NumberAnimation { target: noxToast; property: "opacity"; to: 1; duration: 150 }
+            PauseAnimation { duration: 2200 }
+            NumberAnimation { target: noxToast; property: "opacity"; to: 0; duration: 400 }
+        }
     }
 
     Item {
@@ -1321,6 +1397,23 @@ Item {
             } else if (Chiaki.session) {
                 sessionLoading = !(Chiaki.settings.audioVideoDisabled & 0x02);
             }
+        }
+
+        function onScreenshotRequested() {
+            if (!Chiaki.session)
+                return;
+            var wasOpen = menuController.open;
+            menuController.close();
+            noxShootTimer.interval = wasOpen ? 400 : 60;
+            noxShootTimer.restart();
+        }
+
+        function onScreenshotSaved(path) {
+            noxToast.show(qsTr("📸 Capture enregistrée dans « Nox Remote Capture »"));
+        }
+
+        function onScreenshotFailed() {
+            noxToast.show(qsTr("La capture n'a pas marché, réessaie"));
         }
 
         function onMenuRequested() {

@@ -184,6 +184,10 @@ Rectangle {
             onClicked: liveGuide.open()
         }
         TopButton {
+            text: qsTr("Captures")
+            onClicked: Chiaki.window.openCaptureFolder()
+        }
+        TopButton {
             text: qsTr("Manette")
             onClicked: root.showControllerMappingDialog()
         }
@@ -354,6 +358,10 @@ Rectangle {
                         + "<li>Son : ajoute l'audio de l'application / audio du PC.</li></ul>"
                         + "<h3>Discord</h3>"
                         + "<ul><li>Partager ton écran → onglet <b>Applications</b> → <b>NOX REMOTE 2</b>, son activé.</li></ul>"
+                        + "<h3>Pendant le jeu</h3>"
+                        + "<ul><li><b>F4</b> ou <b>F10</b> : ouvrir / fermer la barre du bas (son, luminosité, micro, capture). Un clic sur l'image la ferme aussi.</li>"
+                        + "<li><b>F12</b>, le bouton <b>Capture</b> ou <b>Create + clic du pavé tactile</b> sur la manette : capture d'écran dans Images → <b>Nox Remote Capture</b>.</li>"
+                        + "<li><b>Micro</b> : choisis le micro de la manette ou celui du PC dans la barre du bas (pris en compte à la prochaine activation du micro).</li></ul>"
                         + "<h3>Si ça coupe quand même</h3>"
                         + "<ul><li>Réglages ⚙️ → baisse le <b>débit (bitrate)</b> ou passe en <b>720p</b>.</li>"
                         + "<li>Si l'écran est noir dans OBS : change la méthode de capture, ou lance OBS en même temps que NOX REMOTE 2 (pas en administrateur).</li></ul>")

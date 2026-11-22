@@ -147,6 +147,35 @@ Window {
                 Layout.rightMargin: -10
             }
 
+            ToolButton {
+                id: captureButton
+                Layout.rightMargin: 6
+                text: qsTr("Capture")
+                padding: 10
+                focusPolicy: Qt.StrongFocus
+                onClicked: Chiaki.window.screenshotRequested()
+                Keys.onReturnPressed: clicked()
+                Keys.onEscapePressed: streamMenuWindow.closeRequested()
+            }
+
+            ColumnLayout {
+                Layout.rightMargin: 14
+                spacing: 2
+                Label {
+                    text: qsTr("Micro")
+                    font.pixelSize: 12
+                    opacity: 0.8
+                }
+                ComboBox {
+                    id: micCombo
+                    Layout.preferredWidth: 230
+                    model: [qsTr("Auto (par défaut)")].concat(Chiaki.settings.availableAudioInDevices)
+                    currentIndex: Math.max(0, model.indexOf(Chiaki.settings.audioInDevice))
+                    onActivated: (index) => Chiaki.settings.audioInDevice = index ? model[index] : ""
+                    Keys.onEscapePressed: streamMenuWindow.closeRequested()
+                }
+            }
+
             Slider {
                 id: brightnessSlider
                 Layout.rightMargin: 20
