@@ -90,19 +90,23 @@ Rectangle {
             Chiaki.connectToHost(i);
     }
 
+    // Même fond d'écran que l'écran de chargement
+    Image {
+        id: homeWallpaper
+        anchors.fill: parent
+        source: "qrc:/icons/noxremote-loading.jpg"
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        visible: status === Image.Ready
+    }
     Rectangle {
-        id: glow
-        width: parent.width * 0.9
-        height: width
-        radius: width / 2
-        anchors.centerIn: parent
-        color: "#1b3a8a"
-        opacity: 0.22
-        scale: 0.6
-        SequentialAnimation on scale {
-            loops: Animation.Infinite
-            NumberAnimation { to: 0.7; duration: 4000; easing.type: Easing.InOutSine }
-            NumberAnimation { to: 0.6; duration: 4000; easing.type: Easing.InOutSine }
+        anchors.fill: parent
+        visible: homeWallpaper.visible
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#cc000000" }
+            GradientStop { position: 0.25; color: "#55000000" }
+            GradientStop { position: 0.75; color: "#55000000" }
+            GradientStop { position: 1.0; color: "#dd000000" }
         }
     }
 
@@ -240,9 +244,9 @@ Rectangle {
 
                 background: Rectangle {
                     radius: 22
-                    color: tile.down ? "#22335f" : (tile.hovered || tile.activeFocus ? "#1a2a52" : "#111c38")
+                    color: tile.down ? "#cc22335f" : (tile.hovered || tile.activeFocus ? "#b31a2a52" : "#8c0b1228")
                     border.width: tile.hovered || tile.activeFocus ? 3 : 1
-                    border.color: tile.hovered || tile.activeFocus ? "#ffffff" : "#2c3c66"
+                    border.color: tile.hovered || tile.activeFocus ? "#ffffff" : "#66ffffff"
                     scale: tile.hovered || tile.activeFocus ? 1.03 : 1.0
                     Behavior on scale { NumberAnimation { duration: 120 } }
                     Behavior on color { ColorAnimation { duration: 120 } }
