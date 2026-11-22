@@ -178,55 +178,52 @@ Item {
                 bottom: parent.bottom
             }
 
-            // Chargement NOX REMOTE : anneau qui tourne autour du logo
+            // Chargement NOX REMOTE : couronne de 16 bâtonnets en dégradé (lavande -> bleu -> turquoise)
             Item {
                 id: spinner
                 anchors.centerIn: parent
                 anchors.verticalCenterOffset: -parent.height * 0.12
-                width: 110
+                width: 120
                 height: width
                 visible: sessionLoading
 
-                Image {
-                    anchors.centerIn: parent
-                    width: parent.width * 0.62
-                    height: width
-                    source: "qrc:/icons/noxremote-logo.png"
-                    sourceSize: Qt.size(256, 256)
-                    smooth: true
-                    mipmap: true
-                    SequentialAnimation on scale {
-                        running: sessionLoading
-                        loops: Animation.Infinite
-                        NumberAnimation { to: 1.06; duration: 900; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: 1.0; duration: 900; easing.type: Easing.InOutSine }
-                    }
+                property real phase: 0
+                NumberAnimation on phase {
+                    running: sessionLoading
+                    from: 0; to: 16
+                    duration: 1400
+                    loops: Animation.Infinite
                 }
 
-                Canvas {
-                    id: noxRing
-                    anchors.fill: parent
-                    property real angle: 0
-                    onAngleChanged: requestPaint()
-                    NumberAnimation on angle {
-                        running: sessionLoading
-                        from: 0; to: 360
-                        duration: 1200
-                        loops: Animation.Infinite
+                function spokeColor(t) {
+                    // t entre 0 et 1 : lavande -> bleu -> turquoise
+                    var a = Qt.color("#d4ccff"), b = Qt.color("#7fa6e6"), c = Qt.color("#4fe8cf");
+                    if (t < 0.5) {
+                        var k = t / 0.5;
+                        return Qt.rgba(a.r + (b.r - a.r) * k, a.g + (b.g - a.g) * k, a.b + (b.b - a.b) * k, 1);
                     }
-                    onPaint: {
-                        var ctx = getContext("2d");
-                        ctx.reset();
-                        var c = width / 2, r = width / 2 - 6;
-                        ctx.lineWidth = 5;
-                        ctx.strokeStyle = "rgba(255,255,255,0.12)";
-                        ctx.beginPath(); ctx.arc(c, c, r, 0, 2 * Math.PI); ctx.stroke();
-                        ctx.lineCap = "round";
-                        ctx.strokeStyle = "#ffffff";
-                        var a = angle * Math.PI / 180;
-                        ctx.beginPath(); ctx.arc(c, c, r, a, a + Math.PI * 0.55); ctx.stroke();
-                        ctx.strokeStyle = "#5aa0ff";
-                        ctx.beginPath(); ctx.arc(c, c, r, a + Math.PI, a + Math.PI * 1.35); ctx.stroke();
+                    var m = (t - 0.5) / 0.5;
+                    return Qt.rgba(b.r + (c.r - b.r) * m, b.g + (c.g - b.g) * m, b.b + (c.b - b.b) * m, 1);
+                }
+
+                Repeater {
+                    model: 16
+                    delegate: Item {
+                        required property int index
+                        anchors.fill: parent
+                        rotation: index * 360 / 16
+                        Rectangle {
+                            readonly property real d: ((index - spinner.phase) % 16 + 16) % 16
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            y: 0
+                            width: spinner.width * 0.085
+                            height: spinner.height * 0.2
+                            radius: width / 2
+                            antialiasing: true
+                            color: spinner.spokeColor(index / 15)
+                            opacity: 0.25 + 0.75 * (1 - d / 16)
+                            scale: 0.85 + 0.15 * (1 - d / 16)
+                        }
                     }
                 }
             }
