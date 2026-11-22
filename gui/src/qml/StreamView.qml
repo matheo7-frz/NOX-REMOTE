@@ -145,7 +145,26 @@ Item {
     Rectangle {
         id: loadingView
         anchors.fill: parent
-        color: "black"
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#0b1530" }
+            GradientStop { position: 0.6; color: "#060b1c" }
+            GradientStop { position: 1.0; color: "#020409" }
+        }
+
+        Image {
+            id: noxLoadingWallpaper
+            anchors.fill: parent
+            source: "qrc:/icons/noxremote-loading.jpg"
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            visible: status === Image.Ready
+        }
+        Rectangle {
+            anchors.fill: parent
+            visible: noxLoadingWallpaper.visible
+            color: "#000000"
+            opacity: 0.35
+        }
         opacity: sessionError || sessionLoading || (Chiaki.settings.audioVideoDisabled & 0x02) ? 1.0 : 0.0
         visible: opacity
 
@@ -159,37 +178,92 @@ Item {
                 bottom: parent.bottom
             }
 
-            BusyIndicator {
+            // Chargement NOX REMOTE : anneau qui tourne autour du logo
+            Item {
                 id: spinner
                 anchors.centerIn: parent
-                width: 70
+                anchors.verticalCenterOffset: -parent.height * 0.12
+                width: 110
                 height: width
                 visible: sessionLoading
-                running: sessionLoading
+
+                Image {
+                    anchors.centerIn: parent
+                    width: parent.width * 0.62
+                    height: width
+                    source: "qrc:/icons/noxremote-logo.png"
+                    sourceSize: Qt.size(256, 256)
+                    smooth: true
+                    mipmap: true
+                    SequentialAnimation on scale {
+                        running: sessionLoading
+                        loops: Animation.Infinite
+                        NumberAnimation { to: 1.06; duration: 900; easing.type: Easing.InOutSine }
+                        NumberAnimation { to: 1.0; duration: 900; easing.type: Easing.InOutSine }
+                    }
+                }
+
+                Canvas {
+                    id: noxRing
+                    anchors.fill: parent
+                    property real angle: 0
+                    onAngleChanged: requestPaint()
+                    NumberAnimation on angle {
+                        running: sessionLoading
+                        from: 0; to: 360
+                        duration: 1200
+                        loops: Animation.Infinite
+                    }
+                    onPaint: {
+                        var ctx = getContext("2d");
+                        ctx.reset();
+                        var c = width / 2, r = width / 2 - 6;
+                        ctx.lineWidth = 5;
+                        ctx.strokeStyle = "rgba(255,255,255,0.12)";
+                        ctx.beginPath(); ctx.arc(c, c, r, 0, 2 * Math.PI); ctx.stroke();
+                        ctx.lineCap = "round";
+                        ctx.strokeStyle = "#ffffff";
+                        var a = angle * Math.PI / 180;
+                        ctx.beginPath(); ctx.arc(c, c, r, a, a + Math.PI * 0.55); ctx.stroke();
+                        ctx.strokeStyle = "#5aa0ff";
+                        ctx.beginPath(); ctx.arc(c, c, r, a + Math.PI, a + Math.PI * 1.35); ctx.stroke();
+                    }
+                }
+            }
+
+            Label {
+                id: noxLoadingTitle
+                anchors {
+                    top: spinner.bottom
+                    horizontalCenter: spinner.horizontalCenter
+                    topMargin: 28
+                }
+                visible: sessionLoading
+                text: qsTr("Connexion à ta console") + ".".repeat(noxDots.n)
+                font.pixelSize: 26
+                font.bold: true
+                color: "white"
+                Timer {
+                    id: noxDots
+                    property int n: 0
+                    interval: 450
+                    repeat: true
+                    running: sessionLoading
+                    onTriggered: n = (n + 1) % 4
+                }
             }
 
             Label {
                 anchors {
-                    top: spinner.bottom
+                    top: noxLoadingTitle.bottom
                     horizontalCenter: spinner.horizontalCenter
-                    topMargin: 30
+                    topMargin: 14
                 }
-                text: {
-                    if(Chiaki.settings.dpadTouchEnabled)
-                    {
-                        if(Chiaki.settings.audioVideoDisabled == 0x01)
-                            qsTr("Audio Disabled in settings\n") + qsTr("Press %1 to open stream menu").arg(Chiaki.controllers.length ? Chiaki.settings.stringForStreamMenuShortcut() : "Ctrl+O") + "\n" + qsTr("Press %1 to toggle between regular dpad and dpad touch").arg(Chiaki.settings.stringForDpadShortcut())
-                        else
-                            qsTr("Press %1 to open stream menu").arg(Chiaki.controllers.length ? Chiaki.settings.stringForStreamMenuShortcut() : "Ctrl+O") + "\n" + qsTr("Press %1 to toggle between regular dpad and dpad touch").arg(Chiaki.settings.stringForDpadShortcut())
-                    }
-                    else
-                    {
-                        if(Chiaki.settings.audioVideoDisabled == 0x01)
-                            qsTr("Audio Disabled in settings\n") + qsTr("Press %1 to open stream menu").arg(Chiaki.controllers.length ? Chiaki.settings.stringForStreamMenuShortcut() : "Ctrl+O")
-                        else
-                            qsTr("Press %1 to open stream menu").arg(Chiaki.controllers.length ? Chiaki.settings.stringForStreamMenuShortcut() : "Ctrl+O")
-                    }
-                }
+                horizontalAlignment: Text.AlignHCenter
+                color: "#c8d3f0"
+                font.pixelSize: 15
+                text: (Chiaki.settings.audioVideoDisabled == 0x01 ? qsTr("Son désactivé dans les réglages\n") : "")
+                      + qsTr("F4 / F10 : barre du bas   ·   F12 : capture   ·   manette : %1 pour le menu").arg(Chiaki.settings.stringForStreamMenuShortcut())
                 visible: sessionLoading
             }
 
@@ -1213,7 +1287,7 @@ Item {
         parent: Overlay.overlay
         x: Math.round((root.width - width) / 2)
         y: Math.round((root.height - height) / 2)
-        title: qsTr("Console Login PIN")
+        title: qsTr("Code de la console")
         modal: true
         closePolicy: Popup.NoAutoClose
         standardButtons: Dialog.Ok | Dialog.Cancel
@@ -1221,6 +1295,7 @@ Item {
             standardButton(Dialog.Ok).enabled = Qt.binding(function() {
                 return pinField.acceptableInput;
             });
+            pinField.clear();
             view.grabInput(pinField);
             sessionPinDialogActive = true;
             view.updateOverlayInteractionActive();
@@ -1234,14 +1309,21 @@ Item {
         onRejected: Chiaki.stopSession(false)
         Material.roundedScale: Material.MediumScale
 
-        TextField {
-            id: pinField
-            echoMode: Chiaki.settings.streamerMode ? TextInput.Password : TextInput.Normal
-            implicitWidth: 200
-            validator: RegularExpressionValidator { regularExpression: /[0-9]{4}/ }
-            Keys.onReturnPressed: {
-                if(sessionPinDialog.standardButton(Dialog.Ok).enabled)
-                    sessionPinDialog.standardButton(Dialog.Ok).clicked()
+        ColumnLayout {
+            spacing: 14
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: qsTr("Entre le code de ta console")
+                font.pixelSize: 18
+            }
+            CodeBoxes {
+                id: pinField
+                Layout.alignment: Qt.AlignHCenter
+                length: 4
+                onAccepted: {
+                    if (sessionPinDialog.standardButton(Dialog.Ok).enabled)
+                        sessionPinDialog.standardButton(Dialog.Ok).clicked()
+                }
             }
         }
     }
@@ -1288,18 +1370,16 @@ Item {
 
             Label {
                 Layout.alignment: Qt.AlignCenter
-                text: qsTr("Console Login PIN")
+                text: qsTr("Code de la console")
                 font.bold: true
                 font.pixelSize: 24
             }
 
-            TextField {
+            CodeBoxes {
                 id: separatePinField
-                Layout.topMargin: 20
-                Layout.fillWidth: true
-                echoMode: Chiaki.settings.streamerMode ? TextInput.Password : TextInput.Normal
-                validator: RegularExpressionValidator { regularExpression: /[0-9]{4}/ }
-                Keys.onReturnPressed: if (acceptableInput) separatePinOkButton.clicked()
+                Layout.alignment: Qt.AlignHCenter
+                length: 4
+                onAccepted: separatePinOkButton.clicked()
                 Keys.onEscapePressed: separateSessionPinWindow.visible = false
             }
 

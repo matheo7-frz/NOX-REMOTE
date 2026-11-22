@@ -132,26 +132,21 @@ DialogView {
 
             Label {
                 Layout.alignment: Qt.AlignRight
-                text: qsTr("Remote Play PIN:")
+                text: qsTr("Code à 8 chiffres (PS5) :")
             }
 
-            C.TextField {
+            CodeBoxes {
                 id: pin
-                validator: RegularExpressionValidator { regularExpression: /[0-9]{8}/ }
+                length: 8
+                boxSize: 50
                 Layout.preferredWidth: 400
-                echoMode: Chiaki.settings.streamerMode ? TextInput.Password : TextInput.Normal
-                KeyNavigation.priority: {
-                    if(readOnly)
-                        KeyNavigation.BeforeItem
-                    else
-                        KeyNavigation.AfterItem
-                }
                 KeyNavigation.up: accountId
+                KeyNavigation.down: cpin
             }
 
             Label {
                 Layout.alignment: Qt.AlignRight
-                text: qsTr("Console Pin [Optional]")
+                text: qsTr("Code de la console (facultatif) :")
             }
 
             C.TextField {
