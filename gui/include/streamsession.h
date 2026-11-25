@@ -33,6 +33,10 @@
 #include "settings.h"
 
 #include <QObject>
+
+// NOX VF (doublage français)
+void NoxVfSetEnabled(bool on);
+bool NoxVfIsConnected();
 #include <QImage>
 #include <QMouseEvent>
 #include <QMutex>

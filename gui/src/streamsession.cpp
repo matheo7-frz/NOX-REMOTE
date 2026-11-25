@@ -363,6 +363,7 @@ struct NoxVfBridge
 	QPointer<QTcpSocket> client;
 	std::atomic<bool> connected{false};
 	std::atomic<int> duck_pct{100};
+	std::atomic<bool> enabled{true};
 	int channels = 2;
 	int rate = 48000;
 
@@ -380,6 +381,12 @@ struct NoxVfBridge
 		QObject::connect(server, &QTcpServer::newConnection, server, [this]() {
 			while(QTcpSocket *s = server->nextPendingConnection())
 			{
+				if(!enabled)
+				{
+					s->disconnectFromHost();
+					s->deleteLater();
+					continue;
+				}
 				if(client)
 					client->deleteLater();
 				client = s;
@@ -411,6 +418,18 @@ struct NoxVfBridge
 			}
 		});
 		server->listen(QHostAddress::LocalHost, 47800);
+	}
+
+	void setEnabled(bool on)
+	{
+		enabled = on;
+		if(!on)
+		{
+			duck_pct = 100;
+			connected = false;
+			if(client)
+				client->disconnectFromHost();
+		}
 	}
 
 	void send(const QByteArray &pcm)
@@ -1451,6 +1470,17 @@ void StreamSession::SendFeedbackState()
 	chiaki_session_set_controller_state(&session, &state);
 }
 
+void NoxVfSetEnabled(bool on)
+{
+	NoxVfBridge::get().ensureStarted();
+	NoxVfBridge::get().setEnabled(on);
+}
+
+bool NoxVfIsConnected()
+{
+	return NoxVfBridge::get().connected.load();
+}
+
 void StreamSession::InitAudio(unsigned int channels, unsigned int rate)
 {
 	NoxVfBridge::get().channels = (int)channels;
@@ -2057,7 +2087,7 @@ void StreamSession::PushAudioFrame(int16_t *og_buf, size_t samples_count)
 	int nox_volume = audio_volume;
 	{
 		NoxVfBridge &vf = NoxVfBridge::get();
-		if(vf.connected)
+		if(vf.connected && vf.enabled)
 		{
 			QByteArray raw(reinterpret_cast<const char *>(og_buf), (int)(samples_count * audio_out_sample_size));
 			QMetaObject::invokeMethod(QCoreApplication::instance(), [raw]() { NoxVfBridge::get().send(raw); }, Qt::QueuedConnection);

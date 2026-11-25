@@ -6,6 +6,8 @@
 #include <QMutex>
 #include <QAtomicInteger>
 #include <QWindow>
+#include <QElapsedTimer>
+#include <QRectF>
 #include <QQuickWindow>
 #include <QLoggingCategory>
 #include <deque>
@@ -150,6 +152,9 @@ public:
     Q_INVOKABLE void takeScreenshot();
     Q_INVOKABLE void openCaptureFolder();
     Q_INVOKABLE bool launchNoxVf();
+    Q_INVOKABLE void setNoxBarRect(qreal x, qreal y, qreal w, qreal h, bool visible);
+    Q_INVOKABLE void setNoxVf(bool on);
+    Q_INVOKABLE bool noxVfConnected() const;
     Q_INVOKABLE void releaseInput();
     Q_INVOKABLE void requestOverlayUpdate();
     Q_INVOKABLE void setOverlayInteractionActive(bool active);
@@ -181,6 +186,7 @@ signals:
     void videoPresetChanged();
     void menuRequested();
     void screenshotRequested();
+    void noxMouseActivity();
     void screenshotSaved(const QString &path);
     void screenshotFailed();
     void directStreamChanged();
@@ -489,4 +495,8 @@ private:
     } vk_funcs;
 
     friend class QmlBackend;
+    QRectF nox_bar_rect;
+    bool nox_bar_visible = false;
+    bool nox_bar_pressing = false;
+    QElapsedTimer nox_move_timer;
 };

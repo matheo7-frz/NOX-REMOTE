@@ -88,6 +88,7 @@ Item {
     StackView.onDeactivated: Chiaki.window.keepVideo = false
 
     Component.onCompleted: {
+        Chiaki.window.setNoxVf(noxPrefs.vfOn);
         updateSeparateMenuGeometry();
         updateOverlayInteractionActive();
         Chiaki.window.setStatsOverlayActive(streamStatsVisible);
@@ -978,6 +979,8 @@ Item {
         id: noxPrefs
         category: "noxremote"
         property int brightness: 50
+        property bool vfOn: false
+        property bool hdAi: false
     }
 
     // Voile de luminosité NOX REMOTE (50 = normal)
@@ -989,6 +992,141 @@ Item {
                                           : (noxPrefs.brightness - 50) / 50 * 0.35
         visible: opacity > 0.001 && !!Chiaki.session
     }
+
+    // ---------- Barre NOX (apparaît quand la souris bouge, comme Remote Play) ----------
+    Item {
+        id: noxBar
+        property bool shown: false
+        z: 900
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: shown ? 22 : -10
+        width: Math.min(parent.width - 40, 1180)
+        height: 96
+        opacity: shown ? 1 : 0
+        visible: opacity > 0.01 && !useSeparateMenuWindow
+        Behavior on opacity { NumberAnimation { duration: 180 } }
+        Behavior on anchors.bottomMargin { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+
+        function updateRect() {
+            var p = noxBar.mapToItem(null, 0, 0);
+            Chiaki.window.setNoxBarRect(p.x, p.y, noxBar.width, noxBar.height, noxBar.shown && noxBar.visible);
+        }
+        onShownChanged: updateRect()
+        onWidthChanged: updateRect()
+        onYChanged: updateRect()
+
+        Timer {
+            id: noxBarHide
+            interval: 2500
+            onTriggered: {
+                if (noxBarHover.containsMouse || barVolume.pressed || barBright.pressed)
+                    restart();
+                else
+                    noxBar.shown = false;
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 20
+            color: "#e60a1128"
+            border.color: "#40ffffff"
+            border.width: 1
+        }
+
+        MouseArea {
+            id: noxBarHover
+            anchors.fill: parent
+            hoverEnabled: true
+            acceptedButtons: Qt.NoButton
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 24
+            anchors.rightMargin: 24
+            spacing: 22
+
+            ColumnLayout {
+                spacing: 0
+                Label { text: qsTr("🔊 Son  %1").arg(Math.round(barVolume.value * 100 / 128)); color: "white"; font.pixelSize: 14 }
+                Slider {
+                    id: barVolume
+                    Layout.preferredWidth: 210
+                    from: 0; to: 128; stepSize: 1
+                    value: Chiaki.settings.audioVolume
+                    onMoved: { Chiaki.settings.audioVolume = value; noxBarHide.restart(); }
+                }
+            }
+
+            ColumnLayout {
+                spacing: 0
+                Label { text: qsTr("☀ Luminosité  %1").arg(Math.round(barBright.value)); color: "white"; font.pixelSize: 14 }
+                Slider {
+                    id: barBright
+                    Layout.preferredWidth: 210
+                    from: 0; to: 100; stepSize: 1
+                    value: noxPrefs.brightness
+                    onMoved: { noxPrefs.brightness = value; noxBarHide.restart(); }
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+
+            component BarToggle: Button {
+                id: bt
+                property bool on: false
+                Layout.preferredHeight: 52
+                focusPolicy: Qt.NoFocus
+                font.pixelSize: 15
+                font.bold: true
+                background: Rectangle {
+                    radius: 14
+                    color: bt.on ? "#2463eb" : (bt.hovered ? "#26355f" : "#1a2546")
+                    border.color: bt.on ? "#8fb4ff" : "#33ffffff"
+                    border.width: 1
+                }
+                contentItem: Label {
+                    text: bt.text
+                    color: "white"
+                    font: bt.font
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+
+            BarToggle {
+                text: on ? qsTr("Qualité HD IA : ON") : qsTr("Qualité HD IA : OFF")
+                on: noxPrefs.hdAi
+                onClicked: {
+                    noxPrefs.hdAi = !noxPrefs.hdAi;
+                    Chiaki.settings.videoPreset = noxPrefs.hdAi ? 4 : 1;
+                    Chiaki.window.videoPreset = noxPrefs.hdAi ? ChiakiWindow.VideoPreset.HighQualityAdvancedSpatial : ChiakiWindow.VideoPreset.Default;
+                    Chiaki.settings.placeboDebandEnabled = noxPrefs.hdAi;
+                    noxBarHide.restart();
+                }
+            }
+
+            BarToggle {
+                text: on ? qsTr("VF : ON") : qsTr("VF : OFF")
+                on: noxPrefs.vfOn
+                onClicked: {
+                    noxPrefs.vfOn = !noxPrefs.vfOn;
+                    Chiaki.window.setNoxVf(noxPrefs.vfOn);
+                    noxToast.show(noxPrefs.vfOn ? qsTr("🇫🇷 Doublage français activé") : qsTr("Doublage français coupé"));
+                    noxBarHide.restart();
+                }
+            }
+
+            BarToggle {
+                text: qsTr("📸 Capture")
+                onClicked: { noxBar.shown = false; Chiaki.window.screenshotRequested(); }
+            }
+        }
+    }
+
+    Component.onDestruction: Chiaki.window.setNoxBarRect(0, 0, 0, 0, false)
 
     Timer {
         id: noxShootTimer
@@ -1476,6 +1614,14 @@ Item {
             } else if (Chiaki.session) {
                 sessionLoading = !(Chiaki.settings.audioVideoDisabled & 0x02);
             }
+        }
+
+        function onNoxMouseActivity() {
+            if (useSeparateMenuWindow || !Chiaki.session || menuController.open || sessionLoading || sessionError)
+                return;
+            noxBar.shown = true;
+            noxBar.updateRect();
+            noxBarHide.restart();
         }
 
         function onScreenshotRequested() {

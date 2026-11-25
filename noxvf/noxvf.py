@@ -370,9 +370,24 @@ class NoxVF:
                                 self.seg_q.put_nowait(seg)
                             except queue.Full:
                                 pass                               # on saute si l'IA est en retard
-            except OSError:
-                time.sleep(2)
+            except (OSError, IndexError, ValueError):
+                pass
             finally:
+                # NOX REMOTE a coupé la VF (ou la partie est finie) : on se tait tout de suite
+                for q in (self.seg_q, self.say_q):
+                    try:
+                        while True:
+                            q.get_nowait()
+                    except queue.Empty:
+                        pass
+                try:
+                    import sounddevice as sd
+                    sd.stop()
+                except Exception:  # noqa: BLE001
+                    pass
+                if self.running:
+                    self.status("VF en pause (désactivée dans NOX REMOTE ou partie terminée)")
+                    time.sleep(2)
                 try:
                     if self.sock:
                         self.sock.close()
@@ -436,7 +451,11 @@ def main():
         root.iconbitmap(os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(__file__)), "noxvf.ico"))
     except tk.TclError:
         pass
-    NoxVF(root)
+    app = NoxVF(root)
+    if "--auto" in sys.argv:
+        # lancé par le bouton VF de NOX REMOTE : démarre tout seul, fenêtre réduite
+        root.after(400, app.toggle)
+        root.after(800, root.iconify)
     root.mainloop()
 
 

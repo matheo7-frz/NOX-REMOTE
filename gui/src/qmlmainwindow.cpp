@@ -7751,12 +7751,49 @@ void QmlMainWindow::takeScreenshot()
         emit screenshotFailed();
 }
 
-bool QmlMainWindow::launchNoxVf()
+static bool startNoxVfProcess(const QStringList &args)
 {
     const QString exe = QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("NOX VF/NOX VF.exe"));
     if (!QFileInfo::exists(exe))
         return false;
-    return QProcess::startDetached(exe, {}, QFileInfo(exe).absolutePath());
+    return QProcess::startDetached(exe, args, QFileInfo(exe).absolutePath());
+}
+
+static void launchNoxVfAuto()
+{
+    startNoxVfProcess({QStringLiteral("--auto")});
+}
+
+bool QmlMainWindow::launchNoxVf()
+{
+    return startNoxVfProcess({});
+}
+
+void QmlMainWindow::setNoxBarRect(qreal x, qreal y, qreal w, qreal h, bool visible)
+{
+    nox_bar_rect = QRectF(x, y, w, h);
+    const bool was = nox_bar_visible;
+    nox_bar_visible = visible;
+    if (!visible)
+        nox_bar_pressing = false;
+    if (was != visible && session && !grab_input) {
+        if (visible)
+            setCursor(Qt::ArrowCursor);
+        else if (has_video && settings->GetHideCursor())
+            setCursor(Qt::BlankCursor);
+    }
+}
+
+void QmlMainWindow::setNoxVf(bool on)
+{
+    NoxVfSetEnabled(on);
+    if (on && !NoxVfIsConnected())
+        launchNoxVfAuto();
+}
+
+bool QmlMainWindow::noxVfConnected() const
+{
+    return NoxVfIsConnected();
 }
 
 void QmlMainWindow::openCaptureFolder()
@@ -7775,6 +7812,21 @@ bool QmlMainWindow::event(QEvent *event)
         if (static_cast<QMouseEvent*>(event)->source() != Qt::MouseEventNotSynthesized)
             return true;
         if (session && !grab_input) {
+            // NOX REMOTE : la barre du bas apparaît quand la souris bouge, et reçoit ses clics
+            auto *me = static_cast<QMouseEvent*>(event);
+            if (event->type() == QEvent::MouseMove && (!nox_move_timer.isValid() || nox_move_timer.elapsed() > 120)) {
+                nox_move_timer.restart();
+                emit noxMouseActivity();
+            }
+            const bool in_bar = nox_bar_visible && nox_bar_rect.contains(me->scenePosition());
+            if (event->type() == QEvent::MouseButtonPress && in_bar)
+                nox_bar_pressing = true;
+            if (in_bar || nox_bar_pressing) {
+                if (event->type() == QEvent::MouseButtonRelease)
+                    nox_bar_pressing = false;
+                QGuiApplication::sendEvent(quick_window, event);
+                return true;
+            }
             if (event->type() == QEvent::MouseMove)
                 session->HandleMouseMoveEvent(static_cast<QMouseEvent*>(event), width(), height());
             else if (event->type() == QEvent::MouseButtonPress)
