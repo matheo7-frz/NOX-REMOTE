@@ -272,12 +272,51 @@ class Persos:
     def match(self, emb, threshold=0.55):
         best, best_sim = None, threshold
         for name, p in self.data.items():
-            if p["emb"] is None:
+            if name.startswith("_") or p["emb"] is None:
                 continue
             sim = float(np.dot(emb, np.array(p["emb"], dtype=np.float32)))
             if sim > best_sim:
                 best, best_sim = name, sim
         return best
+
+    # --- apprentissage automatique : les voix qui reviennent souvent = personnages de l'histoire
+    def auto_learn(self, emb, gender, promote_after=6, join=0.6):
+        """Regroupe les voix inconnues. Une voix entendue souvent devient un personnage avec sa propre voix.
+        La voix d'homme la plus fréquente devient Jason, la voix de femme la plus fréquente devient Lucia."""
+        pend = self.data.setdefault("_attente", [])
+        best, best_sim = None, join
+        for c in pend:
+            sim = float(np.dot(emb, np.array(c["emb"], dtype=np.float32)))
+            if sim > best_sim:
+                best, best_sim = c, sim
+        if best is None:
+            pend.append({"emb": emb.tolist(), "n": 1, "g": {"homme": 0, "femme": 0}})
+            best = pend[-1]
+        else:
+            n = best["n"]
+            new = (np.array(best["emb"], dtype=np.float32) * n + emb) / (n + 1)
+            best["emb"], best["n"] = (new / (np.linalg.norm(new) + 1e-9)).tolist(), n + 1
+        best["g"][gender] = best["g"].get(gender, 0) + 1
+        if len(pend) > 40:                                   # on oublie les voix entendues une seule fois
+            pend.sort(key=lambda c: -c["n"])
+            del pend[30:]
+        if best["n"] >= promote_after:
+            g = "femme" if best["g"].get("femme", 0) > best["g"].get("homme", 0) else "homme"
+            main = "Lucia" if g == "femme" else "Jason"
+            if self.data[main]["emb"] is None:
+                name = main
+            else:
+                k = 1 + sum(1 for v in self.data.values() if isinstance(v, dict) and v.get("auto"))
+                name = f"Perso {k}"
+            pend.remove(best)
+            if name not in self.data:
+                used = [v for k2, v in self.data.items() if not k2.startswith("_") and v["voice"][0] == "mls"]
+                idx = 3 + 7 * len(used) + (0 if g == "homme" else 3)
+                self.data[name] = {"emb": None, "n": 0, "voice": ["mls", idx], "auto": True}
+            self.data[name]["emb"], self.data[name]["n"] = best["emb"], best["n"]
+            self.save()
+            return name
+        return None
 
     def reset(self):
         self.data = {}
@@ -360,6 +399,10 @@ class NoxVF:
         for txt, val in (("Rapide", "base.en"), ("Équilibrée", "small.en"), ("Max (PC puissant)", "medium.en")):
             ttk.Radiobutton(qf, text=txt, value=val, variable=self.quality).pack(side="left", padx=4)
 
+        self.auto_persos = tk.BooleanVar(value=True)
+        ttk.Checkbutton(f, text="Reconnaître les personnages automatiquement (Jason, Lucia...)",
+                        variable=self.auto_persos).grid(row=4, column=0, columnspan=3, sticky="w")
+
         self.show_subs = tk.BooleanVar(value=True)
         ttk.Checkbutton(f, text="Sous-titres français à l'écran (pour le live)", variable=self.show_subs,
                         command=self._toggle_subs).grid(row=3, column=0, columnspan=3, sticky="w", pady=8)
@@ -394,9 +437,12 @@ class NoxVF:
     def _refresh_persos(self):
         parts = []
         for name, p in self.persos.data.items():
+            if name.startswith("_"):
+                continue
             parts.append(f"{name} : {p['n']} exemple(s)" if p["n"] else f"{name} : pas encore appris")
         self.persos_var.set("   ·   ".join(parts) +
-                            "\nAstuce : clique 3 à 5 fois sur le bon nom quand un perso parle, il gardera sa voix.")
+                            "\nAutomatique : les voix qui reviennent souvent deviennent des persos (Jason, Lucia, Perso 1...)."
+                            "\nSi l'IA se trompe, clique sur le bon nom pendant qu'il parle pour la corriger.")
 
     def tag_last(self, name, gender=None):
         if self.last_emb is None:
@@ -585,6 +631,10 @@ class NoxVF:
                 gender = "femme" if pitch_hz(seg) > 165 else "homme"
                 self.last_emb, self.last_gender = emb, gender
                 who = self.persos.match(emb)
+                if not who and self.auto_persos.get():
+                    who = self.persos.auto_learn(emb, gender)
+                    if who:
+                        self.status(f"🎭 Nouveau personnage reconnu : {who}")
                 if who:
                     voice, spk = self.persos.data[who]["voice"]
                     label = who
