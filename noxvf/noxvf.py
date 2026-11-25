@@ -10,6 +10,8 @@ import sys
 import threading
 import time
 import tkinter as tk
+import json
+import tarfile
 import zipfile
 from tkinter import ttk
 
@@ -23,9 +25,20 @@ os.makedirs(MODELS, exist_ok=True)
 
 HF = "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR"
 VOICES = {
-    "femme": ("fr_FR-siwis-medium", f"{HF}/siwis/medium/fr_FR-siwis-medium"),
-    "homme": ("fr_FR-tom-medium", f"{HF}/tom/medium/fr_FR-tom-medium"),
+    "femme": ("fr_FR-siwis-medium", f"{HF}/siwis/medium/fr_FR-siwis-medium"),   # PNJ femmes
+    "homme": ("fr_FR-tom-medium", f"{HF}/tom/medium/fr_FR-tom-medium"),          # PNJ hommes
+    "upmc": ("fr_FR-upmc-medium", f"{HF}/upmc/medium/fr_FR-upmc-medium"),        # Lucia / Jason
+    "mls": ("fr_FR-mls-medium", f"{HF}/mls/medium/fr_FR-mls-medium"),            # autres persos de l'histoire
 }
+SK = "https://github.com/k2-fsa/sherpa-onnx/releases/download"
+SPK_URL = f"{SK}/speaker-recongition-models/wespeaker_en_voxceleb_resnet34.onnx"
+AT_URL = f"{SK}/audio-tagging-models/sherpa-onnx-ced-mini-audio-tagging-2024-04-19.tar.bz2"
+PERSOS_FILE = os.path.join(BASE, "persos.json")
+MUSIC_LABELS = {"Music", "Singing", "Song", "Rapping", "Vocal music", "Musical instrument",
+                "Pop music", "Hip hop music", "Electronic music", "Rock music", "Techno",
+                "Dance music", "Drum", "Bass guitar", "Synthesizer", "Choir"}
+SPEECH_LABELS = {"Speech", "Conversation", "Narration, monologue", "Male speech, man speaking",
+                 "Female speech, woman speaking", "Shout", "Yell"}
 ARGOS_URL = "https://argos-net.com/v1/translate-en_fr-1_9.argosmodel"
 
 # Phrases que Whisper « invente » souvent sur de la musique ou du silence
@@ -62,6 +75,19 @@ def get_voice(name, status):
     return onnx
 
 
+def get_tagger_dir(status):
+    target = os.path.join(MODELS, "tagging")
+    if not os.path.isdir(target):
+        z = download(AT_URL, os.path.join(MODELS, "tagging.tar.bz2"), status)
+        status("Installation du détecteur de musique...")
+        with tarfile.open(z) as tf:
+            tf.extractall(target)
+    for root, dirs, files in os.walk(target):
+        if "model.int8.onnx" in files and "class_labels_indices.csv" in files:
+            return root
+    raise RuntimeError("Détecteur de musique introuvable")
+
+
 def get_translator_dir(status):
     target = os.path.join(MODELS, "en_fr")
     if not os.path.isdir(target):
@@ -83,6 +109,9 @@ class Engine:
         self.translator = None
         self.sp = None
         self.voices = {}
+        self.speakers = {}          # nom de voix -> {nom du locuteur: id}
+        self.spk = None
+        self.tagger = None
 
     def load(self, whisper_size):
         from faster_whisper import WhisperModel
@@ -101,7 +130,42 @@ class Engine:
         for name in VOICES:
             onnx = get_voice(name, status)
             self.voices[name] = self._load_voice(onnx)
+            try:
+                with open(onnx + ".json", encoding="utf-8") as fh:
+                    self.speakers[name] = json.load(fh).get("speaker_id_map", {}) or {}
+            except (OSError, ValueError):
+                self.speakers[name] = {}
+        import sherpa_onnx
+        status("Chargement de la reconnaissance des personnages...")
+        spk = download(SPK_URL, os.path.join(MODELS, "voix_persos.onnx"), status)
+        self.spk = sherpa_onnx.SpeakerEmbeddingExtractor(
+            sherpa_onnx.SpeakerEmbeddingExtractorConfig(model=spk, num_threads=2))
+        tdir2 = get_tagger_dir(status)
+        self.tagger = sherpa_onnx.AudioTagging(sherpa_onnx.AudioTaggingConfig(
+            model=sherpa_onnx.AudioTaggingModelConfig(ced=os.path.join(tdir2, "model.int8.onnx"), num_threads=2),
+            labels=os.path.join(tdir2, "class_labels_indices.csv"), top_k=10))
         status("Prêt")
+
+    def is_music(self, audio16k):
+        """True si c'est surtout de la musique / une chanson (radio, voiture...) : on ne double pas."""
+        st = self.tagger.create_stream()
+        st.accept_waveform(16000, audio16k)
+        music = speech = singing = 0.0
+        for ev in self.tagger.compute(st):
+            if ev.name in MUSIC_LABELS:
+                music = max(music, ev.prob)
+            if ev.name in ("Singing", "Song", "Rapping", "Vocal music"):
+                singing = max(singing, ev.prob)
+            if ev.name in SPEECH_LABELS:
+                speech = max(speech, ev.prob)
+        return singing > 0.25 or (music > 0.35 and music >= speech)
+
+    def embed(self, audio16k):
+        st = self.spk.create_stream()
+        st.accept_waveform(16000, audio16k)
+        st.input_finished()
+        e = np.array(self.spk.compute(st), dtype=np.float32)
+        return e / (np.linalg.norm(e) + 1e-9)
 
     @staticmethod
     def _load_voice(onnx):
@@ -127,19 +191,31 @@ class Engine:
         res = self.translator.translate_batch([tokens], beam_size=2, max_decoding_length=256)
         return self.sp.decode(res[0].hypotheses[0]).replace("▁", " ").strip()
 
-    def speak(self, name, text, speed):
-        """Renvoie (pcm int16 numpy, sample_rate)."""
+    def speaker_id(self, name, who):
+        ids = self.speakers.get(name, {})
+        if isinstance(who, int):
+            return who if not ids else who % max(1, len(ids))
+        if who in ids:
+            return ids[who]
+        return None
+
+    def speak(self, name, text, speed, who=None):
+        """Renvoie (pcm int16 numpy, sample_rate). who = locuteur pour les voix à plusieurs personnes."""
         voice = self.voices[name]
+        sid = self.speaker_id(name, who) if who is not None else None
         chunks, rate = [], 22050
         try:  # piper-tts 1.3+
             from piper import SynthesisConfig
-            cfg = SynthesisConfig(length_scale=1.0 / speed)
+            cfg = SynthesisConfig(length_scale=1.0 / speed, speaker_id=sid)
             for c in voice.synthesize(text, syn_config=cfg):
                 chunks.append(c.audio_int16_bytes)
                 rate = c.sample_rate
         except (ImportError, TypeError, AttributeError):
             rate = voice.config.sample_rate
-            for b in voice.synthesize_stream_raw(text, length_scale=1.0 / speed):
+            kw = {"length_scale": 1.0 / speed}
+            if sid is not None:
+                kw["speaker_id"] = sid
+            for b in voice.synthesize_stream_raw(text, **kw):
                 chunks.append(b)
         return np.frombuffer(b"".join(chunks), dtype=np.int16), rate
 
@@ -160,6 +236,56 @@ def pitch_hz(x, rate=16000):
     return float(np.median(f0s)) if f0s else 0.0
 
 
+# ---------------------------------------------------------------- personnages
+class Persos:
+    """Personnages de l'histoire reconnus à leur voix : chacun garde sa propre voix française."""
+    DEFAULTS = {"Lucia": ["upmc", "jessica"], "Jason": ["upmc", "pierre"]}
+
+    def __init__(self):
+        self.data = {}
+        try:
+            with open(PERSOS_FILE, encoding="utf-8") as fh:
+                self.data = json.load(fh)
+        except (OSError, ValueError):
+            self.data = {}
+        for name, voice in self.DEFAULTS.items():
+            self.data.setdefault(name, {"emb": None, "n": 0, "voice": voice})
+
+    def save(self):
+        with open(PERSOS_FILE, "w", encoding="utf-8") as fh:
+            json.dump(self.data, fh)
+
+    def add_sample(self, name, emb, gender="homme"):
+        p = self.data.get(name)
+        if p is None:
+            # nouveau perso : une voix « mls » différente pour chacun
+            used = [v for v in self.data.values() if v["voice"][0] == "mls"]
+            idx = 3 + 7 * len(used) + (0 if gender == "homme" else 3)
+            p = self.data[name] = {"emb": None, "n": 0, "voice": ["mls", idx]}
+        n = p["n"]
+        old = np.array(p["emb"], dtype=np.float32) if p["emb"] is not None else np.zeros_like(emb)
+        new = (old * n + emb) / (n + 1)
+        new /= (np.linalg.norm(new) + 1e-9)
+        p["emb"], p["n"] = new.tolist(), n + 1
+        self.save()
+
+    def match(self, emb, threshold=0.55):
+        best, best_sim = None, threshold
+        for name, p in self.data.items():
+            if p["emb"] is None:
+                continue
+            sim = float(np.dot(emb, np.array(p["emb"], dtype=np.float32)))
+            if sim > best_sim:
+                best, best_sim = name, sim
+        return best
+
+    def reset(self):
+        self.data = {}
+        for name, voice in self.DEFAULTS.items():
+            self.data[name] = {"emb": None, "n": 0, "voice": voice}
+        self.save()
+
+
 # ---------------------------------------------------------------- application
 class NoxVF:
     def __init__(self, root):
@@ -171,10 +297,13 @@ class NoxVF:
         self.say_q = queue.Queue(maxsize=6)
         self.ui_q = queue.Queue()
         self.subs = None
+        self.persos = Persos()
+        self.last_emb = None
+        self.last_gender = "homme"
 
         root.title("NOX VF - doublage français")
         root.configure(bg="#070d1f")
-        root.geometry("620x560")
+        root.geometry("640x720")
         root.minsize(560, 480)
         self._style()
         self._build()
@@ -240,12 +369,53 @@ class NoxVF:
         self.go_btn = ttk.Button(b, text="▶  Démarrer le doublage", style="Go.TButton", command=self.toggle)
         self.go_btn.pack(side="left", padx=6)
 
+        pf = tk.Frame(r, bg="#101a38", padx=12, pady=10)
+        pf.pack(fill="x", padx=18, pady=(4, 8))
+        tk.Label(pf, text="Personnages de l'histoire : la dernière phrase, c'était...", bg="#101a38",
+                 fg="#e6ecff").pack(anchor="w")
+        pb = tk.Frame(pf, bg="#101a38")
+        pb.pack(fill="x", pady=(6, 0))
+        ttk.Button(pb, text="Lucia", command=lambda: self.tag_last("Lucia")).pack(side="left", padx=3)
+        ttk.Button(pb, text="Jason", command=lambda: self.tag_last("Jason")).pack(side="left", padx=3)
+        ttk.Button(pb, text="+ Autre perso", command=self.tag_other).pack(side="left", padx=3)
+        ttk.Button(pb, text="Oublier", command=self.reset_persos).pack(side="right", padx=3)
+        self.persos_var = tk.StringVar()
+        tk.Label(pf, textvariable=self.persos_var, bg="#101a38", fg="#8fa0cc",
+                 font=("Segoe UI", 9), justify="left").pack(anchor="w", pady=(6, 0))
+        self._refresh_persos()
+
         tk.Label(r, text="Dernières phrases", bg="#070d1f", fg="#8fa0cc").pack(anchor="w", padx=18)
         self.log = tk.Text(r, height=9, bg="#0b1430", fg="#e6ecff", relief="flat", wrap="word",
                            font=("Segoe UI", 10), padx=10, pady=8)
         self.log.pack(fill="both", expand=True, padx=18, pady=(4, 18))
         self.log.tag_config("en", foreground="#7d8bb3")
         self.log.tag_config("fr", foreground="#ffffff")
+
+    def _refresh_persos(self):
+        parts = []
+        for name, p in self.persos.data.items():
+            parts.append(f"{name} : {p['n']} exemple(s)" if p["n"] else f"{name} : pas encore appris")
+        self.persos_var.set("   ·   ".join(parts) +
+                            "\nAstuce : clique 3 à 5 fois sur le bon nom quand un perso parle, il gardera sa voix.")
+
+    def tag_last(self, name, gender=None):
+        if self.last_emb is None:
+            self.status("Attends qu'une phrase soit doublée, puis clique sur le nom du perso.")
+            return
+        self.persos.add_sample(name, self.last_emb, gender or self.last_gender)
+        self._refresh_persos()
+        self.status(f"✅ Voix de {name} apprise ({self.persos.data[name]['n']} exemple(s))")
+
+    def tag_other(self):
+        from tkinter import simpledialog
+        name = simpledialog.askstring(APP, "Nom du personnage :", parent=self.root)
+        if name and name.strip():
+            self.tag_last(name.strip()[:30])
+
+    def reset_persos(self):
+        self.persos.reset()
+        self._refresh_persos()
+        self.status("Personnages oubliés")
 
     def _toggle_subs(self):
         if not self.show_subs.get() and self.subs:
@@ -404,16 +574,27 @@ class NoxVF:
             except queue.Empty:
                 continue
             try:
+                # musique, chansons, radio : on laisse le son original, pas de doublage
+                if self.engine.is_music(seg):
+                    continue
                 en = self.engine.transcribe(seg)
                 if len(en) < 2:
                     continue
                 fr = self.engine.translate(en)
-                mode = self.voice_mode.get()
-                if mode == "auto":
-                    mode = "femme" if pitch_hz(seg) > 165 else "homme"
-                self.ui_q.put(("line", (en, fr)))
+                emb = self.engine.embed(seg)
+                gender = "femme" if pitch_hz(seg) > 165 else "homme"
+                self.last_emb, self.last_gender = emb, gender
+                who = self.persos.match(emb)
+                if who:
+                    voice, spk = self.persos.data[who]["voice"]
+                    label = who
+                else:
+                    mode = self.voice_mode.get()
+                    voice, spk = (gender if mode == "auto" else mode), None
+                    label = "PNJ " + voice
+                self.ui_q.put(("line", (f"[{label}] {en}", fr)))
                 try:
-                    self.say_q.put_nowait((mode, fr))
+                    self.say_q.put_nowait((voice, spk, fr))
                 except queue.Full:
                     pass
             except Exception as e:  # noqa: BLE001
@@ -424,12 +605,12 @@ class NoxVF:
         import sounddevice as sd
         while self.running:
             try:
-                mode, fr = self.say_q.get(timeout=0.5)
+                voice, spk, fr = self.say_q.get(timeout=0.5)
             except queue.Empty:
                 continue
             try:
                 speed = 1.0 + 0.12 * self.say_q.qsize()           # parle un peu plus vite si retard
-                pcm, rate = self.engine.speak(mode, fr, min(speed, 1.4))
+                pcm, rate = self.engine.speak(voice, fr, min(speed, 1.4), spk)
                 self._send_duck(self.duck.get())
                 sd.play(pcm, rate)
                 sd.wait()

@@ -20,14 +20,14 @@ jobs:
       - name: Dependances
         run: |
           python -m pip install --upgrade pip
-          pip install faster-whisper ctranslate2 sentencepiece piper-tts sounddevice webrtcvad-wheels numpy requests pyinstaller
+          pip install faster-whisper ctranslate2 sentencepiece piper-tts sherpa-onnx sounddevice webrtcvad-wheels numpy requests pyinstaller
       - name: Test des imports
         run: |
-          python -c "import faster_whisper, ctranslate2, sentencepiece, sounddevice, webrtcvad, numpy, requests; from piper import PiperVoice; print('OK')"
+          python -c "import faster_whisper, ctranslate2, sentencepiece, sherpa_onnx, sounddevice, webrtcvad, numpy, requests; from piper import PiperVoice; print('OK')"
       - name: PyInstaller
         run: |
           copy gui\chiaking.ico noxvf\noxvf.ico
-          pyinstaller --noconfirm --windowed --name "NOX VF" --icon noxvf\noxvf.ico --add-data "noxvf\noxvf.ico;." --collect-all faster_whisper --collect-all ctranslate2 --collect-all piper --collect-all onnxruntime --collect-all sentencepiece --collect-all webrtcvad --collect-all sounddevice --collect-data _sounddevice_data noxvf\noxvf.py
+          pyinstaller --noconfirm --windowed --name "NOX VF" --icon noxvf\noxvf.ico --add-data "noxvf\noxvf.ico;." --collect-all faster_whisper --collect-all ctranslate2 --collect-all piper --collect-all onnxruntime --collect-all sentencepiece --collect-all webrtcvad --collect-all sounddevice --collect-all sherpa_onnx --collect-data _sounddevice_data noxvf\noxvf.py
       - name: Test de l'exe (demarre et se ferme)
         run: |
           $p = Start-Process "dist\NOX VF\NOX VF.exe" -PassThru
