@@ -21,6 +21,15 @@ Rectangle {
         id: livePrefs
         category: "noxremote"
         property bool liveMode: false
+        property bool hdAi: false
+    }
+
+    // Image HD par IA : réseau de neurones FSRCNNX (gratuit, sur ta carte graphique)
+    function applyHdAi(on) {
+        livePrefs.hdAi = on;
+        Chiaki.settings.videoPreset = on ? 4 : 1;   // 4 = Haute qualité + IA avancée, 1 = normal
+        Chiaki.window.videoPreset = on ? ChiakiWindow.VideoPreset.HighQualityAdvancedSpatial : ChiakiWindow.VideoPreset.Default;
+        Chiaki.settings.placeboDebandEnabled = on;  // enlève les « escaliers » dans les dégradés
     }
 
     // Réglages stables pour OBS / TikTok Live Studio / Discord
@@ -184,6 +193,10 @@ Rectangle {
         TopButton {
             text: livePrefs.liveMode ? qsTr("Live : ON") : qsTr("Mode Live")
             onClicked: home.applyLiveMode(!livePrefs.liveMode)
+        }
+        TopButton {
+            text: livePrefs.hdAi ? qsTr("Image HD IA : ON") : qsTr("Image HD IA")
+            onClicked: home.applyHdAi(!livePrefs.hdAi)
         }
         TopButton {
             text: qsTr("Guide Live")
@@ -368,6 +381,10 @@ Rectangle {
                         + "<ul><li><b>F4</b> ou <b>F10</b> : ouvrir / fermer la barre du bas (son, luminosité, micro, capture). Un clic sur l'image la ferme aussi.</li>"
                         + "<li><b>F12</b>, le bouton <b>Capture</b> ou <b>Create + clic du pavé tactile</b> sur la manette : capture d'écran dans Images → <b>Nox Remote Capture</b>.</li>"
                         + "<li><b>Micro</b> : choisis le micro de la manette ou celui du PC dans la barre du bas (pris en compte à la prochaine activation du micro).</li></ul>"
+                        + "<h3>Image HD IA</h3>"
+                        + "<ul><li>Le bouton <b>Image HD IA</b> agrandit l'image avec un petit réseau de neurones (FSRCNNX), gratuit, calculé par ta carte graphique.</li>"
+                        + "<li>Il sert quand ton écran est plus grand que l'image reçue : flux 720p sur écran 1080p, ou flux 1080p sur écran 1440p / 4K. Astuce anti-coupure : flux en 720p + Image HD IA.</li>"
+                        + "<li>Si ça saccade, coupe-le : il demande une carte graphique correcte.</li></ul>"
                         + "<h3>Si ça coupe quand même</h3>"
                         + "<ul><li>Réglages ⚙️ → baisse le <b>débit (bitrate)</b> ou passe en <b>720p</b>.</li>"
                         + "<li>Si l'écran est noir dans OBS : change la méthode de capture, ou lance OBS en même temps que NOX REMOTE 2 (pas en administrateur).</li></ul>")
