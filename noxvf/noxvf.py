@@ -236,6 +236,90 @@ def pitch_hz(x, rate=16000):
     return float(np.median(f0s)) if f0s else 0.0
 
 
+# ---------------------------------------------------------------- lecture de l'écran (OCR Windows)
+class ScreenReader:
+    """Lit les sous-titres français affichés par le jeu dans la fenêtre NOX REMOTE 2 (OCR intégré à Windows, gratuit)."""
+    IGNORE = ("Luminosité", "Qualité HD", "VF :", "Capture", "Son ", "NOX REMOTE", "Doublage français")
+
+    def __init__(self):
+        import asyncio
+        from winrt.windows.media.ocr import OcrEngine
+        from winrt.windows.globalization import Language
+        self.loop = asyncio.new_event_loop()
+        self.engine = None
+        for tag in ("fr-FR", "fr-BE", "fr-CH", "fr-CA"):
+            try:
+                lang = Language(tag)
+                if OcrEngine.is_language_supported(lang):
+                    self.engine = OcrEngine.try_create_from_language(lang)
+                    break
+            except Exception:  # noqa: BLE001
+                pass
+        if self.engine is None:
+            self.engine = OcrEngine.try_create_from_user_profile_languages()
+        if self.engine is None:
+            raise RuntimeError("Lecture d'écran Windows indisponible (ajoute la langue Français dans Windows)")
+        import mss
+        self.sct = mss.mss()
+
+    @staticmethod
+    def find_window():
+        import ctypes
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+        hwnd = user32.FindWindowW(None, "NOX REMOTE 2")
+        if not hwnd or user32.IsIconic(hwnd):
+            return None
+        rect = wintypes.RECT()
+        pt = wintypes.POINT(0, 0)
+        user32.GetClientRect(hwnd, ctypes.byref(rect))
+        user32.ClientToScreen(hwnd, ctypes.byref(pt))
+        w, h = rect.right - rect.left, rect.bottom - rect.top
+        if w < 200 or h < 150:
+            return None
+        return pt.x, pt.y, w, h
+
+    def _ocr(self, bgra, w, h):
+        from winrt.windows.graphics.imaging import SoftwareBitmap, BitmapPixelFormat, BitmapAlphaMode
+        from winrt.windows.storage.streams import DataWriter
+        dw = DataWriter()
+        dw.write_bytes(bytes(bgra))
+        bmp = SoftwareBitmap.create_copy_from_buffer(dw.detach_buffer(), BitmapPixelFormat.BGRA8, w, h,
+                                                     BitmapAlphaMode.PREMULTIPLIED)
+        res = self.loop.run_until_complete(self.engine.recognize_async(bmp))
+        return [ln.text for ln in res.lines]
+
+    def read_subtitles(self):
+        """Texte du bas de l'image (zone des sous-titres)."""
+        win = self.find_window()
+        if not win:
+            return ""
+        x, y, w, h = win
+        box = {"left": x + int(w * 0.10), "top": y + int(h * 0.70), "width": int(w * 0.80), "height": int(h * 0.24)}
+        shot = self.sct.grab(box)
+        lines = self._ocr(shot.bgra, shot.width, shot.height)
+        lines = [ln.strip() for ln in lines if len(ln.strip()) > 1 and not any(k in ln for k in self.IGNORE)]
+        return " ".join(lines).strip()
+
+    def read_screen_names(self, names):
+        """Cherche un nom de personnage connu affiché à l'écran (appel, message...)."""
+        win = self.find_window()
+        if not win:
+            return None
+        x, y, w, h = win
+        shot = self.sct.grab({"left": x, "top": y, "width": w, "height": int(h * 0.70)})
+        text = " ".join(self._ocr(shot.bgra, shot.width, shot.height))
+        for n in names:
+            if n and n in text:
+                return n
+        return None
+
+
+def same_text(a, b):
+    import difflib
+    return difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio() > 0.85
+
+
 # ---------------------------------------------------------------- personnages
 class Persos:
     """Personnages de l'histoire reconnus à leur voix : chacun garde sa propre voix française."""
@@ -339,6 +423,8 @@ class NoxVF:
         self.persos = Persos()
         self.last_emb = None
         self.last_gender = "homme"
+        self.current = None          # (voice, spk, nom, heure) de la voix qui parle en ce moment
+        self.reader = None
 
         root.title("NOX VF - doublage français")
         root.configure(bg="#070d1f")
@@ -398,6 +484,13 @@ class NoxVF:
         qf.grid(row=2, column=1, columnspan=2, sticky="w", padx=10)
         for txt, val in (("Rapide", "base.en"), ("Équilibrée", "small.en"), ("Max (PC puissant)", "medium.en")):
             ttk.Radiobutton(qf, text=txt, value=val, variable=self.quality).pack(side="left", padx=4)
+
+        tk.Label(f, text="Texte à doubler", bg="#070d1f", fg="#e6ecff").grid(row=5, column=0, sticky="w", pady=(8, 0))
+        self.source = tk.StringVar(value="ecran")
+        sf = tk.Frame(f, bg="#070d1f")
+        sf.grid(row=5, column=1, columnspan=2, sticky="w", padx=10, pady=(8, 0))
+        ttk.Radiobutton(sf, text="Sous-titres du jeu (exact)", value="ecran", variable=self.source).pack(side="left", padx=4)
+        ttk.Radiobutton(sf, text="Écoute + traduction IA", value="ecoute", variable=self.source).pack(side="left", padx=4)
 
         self.auto_persos = tk.BooleanVar(value=True)
         ttk.Checkbutton(f, text="Reconnaître les personnages automatiquement (Jason, Lucia...)",
@@ -535,6 +628,7 @@ class NoxVF:
             self.ui_q.put(("stopped", None))
             return
         threading.Thread(target=self._worker, daemon=True).start()
+        threading.Thread(target=self._screen_loop, daemon=True).start()
         threading.Thread(target=self._speaker, daemon=True).start()
         self._receiver()
 
@@ -630,10 +724,6 @@ class NoxVF:
                 # musique, chansons, radio : on laisse le son original, pas de doublage
                 if self.engine.is_music(seg):
                     continue
-                en = self.engine.transcribe(seg)
-                if len(en) < 2:
-                    continue
-                fr = self.engine.translate(en)
                 emb = self.engine.embed(seg)
                 gender = "femme" if pitch_hz(seg) > 165 else "homme"
                 self.last_emb, self.last_gender = emb, gender
@@ -651,6 +741,13 @@ class NoxVF:
                     voice, spk = (gender if mode == "auto" else mode), None
                     label = "PNJ " + voice
                     spk_name = "Habitante" if voice == "femme" else "Habitant"
+                self.current = (voice, spk, spk_name, time.time())
+                if self.source.get() == "ecran":
+                    continue                       # le texte vient des sous-titres du jeu (_screen_loop)
+                en = self.engine.transcribe(seg)
+                if len(en) < 2:
+                    continue
+                fr = self.engine.translate(en)
                 self.ui_q.put(("line", (f"[{label}] {en}", fr)))
                 try:
                     self.say_q.put_nowait((voice, spk, fr, spk_name))
@@ -658,6 +755,54 @@ class NoxVF:
                     pass
             except Exception as e:  # noqa: BLE001
                 self.status(f"Erreur IA : {e}")
+
+    # --- lecture des sous-titres français du jeu à l'écran
+    def _screen_loop(self):
+        last_seen, stable, last_said = "", 0, ""
+        name_check = 0.0
+        while self.running:
+            time.sleep(0.3)
+            if self.source.get() != "ecran" or not self.sock:
+                continue
+            try:
+                if self.reader is None:
+                    self.reader = ScreenReader()
+                text = self.reader.read_subtitles()
+            except Exception as e:  # noqa: BLE001
+                self.status(f"Lecture de l'écran impossible : {e} -> passe en « Écoute + traduction IA »")
+                time.sleep(5)
+                continue
+            if not text:
+                last_seen, stable = "", 0
+                continue
+            if same_text(text, last_seen):
+                stable += 1
+            else:
+                last_seen, stable = text, 0
+                continue
+            # texte stable sur 2 images et nouveau -> on le dit
+            if stable != 1 or same_text(text, last_said) or (last_said and text in last_said):
+                continue
+            last_said = text
+            voice, spk, who = "homme", None, "Habitant"
+            cur = self.current
+            if cur and time.time() - cur[3] < 5:
+                voice, spk, who = cur[0], cur[1], cur[2]
+            # un nom de perso connu à l'écran (appel, message) ? on prend sa voix
+            if time.time() - name_check > 1.5:
+                name_check = time.time()
+                try:
+                    named = self.reader.read_screen_names([n for n in self.persos.data if not n.startswith("_")])
+                except Exception:  # noqa: BLE001
+                    named = None
+                if named and named != who:
+                    voice, spk = self.persos.data[named]["voice"]
+                    who = named
+            self.ui_q.put(("line", (f"[{who}] (sous-titre du jeu)", text)))
+            try:
+                self.say_q.put_nowait((voice, spk, text, who))
+            except queue.Full:
+                pass
 
     # --- voix française + voix anglaise baissée
     def _speaker(self):
@@ -671,7 +816,8 @@ class NoxVF:
                 speed = 1.0 + 0.12 * self.say_q.qsize()           # parle un peu plus vite si retard
                 pcm, rate = self.engine.speak(voice, fr, min(speed, 1.4), spk)
                 self._send_duck(self.duck.get())
-                self._send_line("SUB " + spk_name + "|" + fr.replace("\n", " "))
+                if self.source.get() != "ecran":
+                    self._send_line("SUB " + spk_name + "|" + fr.replace("\n", " "))
                 sd.play(pcm, rate)
                 sd.wait()
             except Exception as e:  # noqa: BLE001
