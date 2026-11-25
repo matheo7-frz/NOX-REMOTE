@@ -12,6 +12,8 @@
 #include "../../lib/src/utils.h"
 
 #include <QKeyEvent>
+#include <QCoreApplication>
+#include <QHostAddress>
 #include <QMutexLocker>
 #include <QtMath>
 #include <atomic>
@@ -345,6 +347,79 @@ StreamSessionConnectInfo::StreamSessionConnectInfo(
 
 static void AudioSettingsCb(uint32_t channels, uint32_t rate, void *user);
 static void AudioFrameCb(int16_t *buf, size_t samples_count, void *user);
+
+// ---------- NOX VF : pont local vers l'appli de doublage français ----------
+// NOX REMOTE envoie le son du jeu (PCM 16 bits) sur 127.0.0.1:47800.
+// NOX VF répond « DUCK <0-100> » pour baisser la voix anglaise pendant le doublage.
+#include <QTcpServer>
+#include <QTcpSocket>
+#include <QPointer>
+#include <atomic>
+
+namespace {
+struct NoxVfBridge
+{
+	QTcpServer *server = nullptr;
+	QPointer<QTcpSocket> client;
+	std::atomic<bool> connected{false};
+	std::atomic<int> duck_pct{100};
+	int channels = 2;
+	int rate = 48000;
+
+	static NoxVfBridge &get()
+	{
+		static NoxVfBridge b;
+		return b;
+	}
+
+	void ensureStarted()
+	{
+		if(server)
+			return;
+		server = new QTcpServer();
+		QObject::connect(server, &QTcpServer::newConnection, server, [this]() {
+			while(QTcpSocket *s = server->nextPendingConnection())
+			{
+				if(client)
+					client->deleteLater();
+				client = s;
+				connected = true;
+				duck_pct = 100;
+				const QByteArray hello = QStringLiteral("NOXVF %1 %2\n").arg(rate).arg(channels).toUtf8();
+				s->write(hello);
+				QObject::connect(s, &QTcpSocket::readyRead, s, [this, s]() {
+					while(s->canReadLine())
+					{
+						const QByteArray line = s->readLine().trimmed();
+						if(line.startsWith("DUCK "))
+						{
+							bool ok = false;
+							int v = line.mid(5).toInt(&ok);
+							if(ok)
+								duck_pct = qBound(0, v, 100);
+						}
+					}
+				});
+				QObject::connect(s, &QTcpSocket::disconnected, s, [this, s]() {
+					if(client == s)
+					{
+						connected = false;
+						duck_pct = 100;
+					}
+					s->deleteLater();
+				});
+			}
+		});
+		server->listen(QHostAddress::LocalHost, 47800);
+	}
+
+	void send(const QByteArray &pcm)
+	{
+		if(client && client->state() == QAbstractSocket::ConnectedState && client->bytesToWrite() < 4 * 1024 * 1024)
+			client->write(pcm);
+	}
+};
+}
 static void HapticsFrameCb(uint8_t *buf, size_t buf_size, void *user);
 #ifdef Q_OS_MACOS
 static void MacMicRequestCb(Authorization authorization, void *user);
@@ -1378,6 +1453,9 @@ void StreamSession::SendFeedbackState()
 
 void StreamSession::InitAudio(unsigned int channels, unsigned int rate)
 {
+	NoxVfBridge::get().channels = (int)channels;
+	NoxVfBridge::get().rate = (int)rate;
+	QMetaObject::invokeMethod(QCoreApplication::instance(), []() { NoxVfBridge::get().ensureStarted(); }, Qt::QueuedConnection);
 	StopAudioOutDrainThread();
 	allow_unmute = true;
 	if(start_mic_unmuted)
@@ -1975,8 +2053,19 @@ void StreamSession::PushAudioFrame(int16_t *og_buf, size_t samples_count)
 		audio_out_ring_fill = 0;
 		audio_out_overflow_logged = false;
 	}
-	if(audio_volume < SDL_MIX_MAXVOLUME)
-		SDL_MixAudioFormat((uint8_t *)buf.data(), (uint8_t *)og_buf, AUDIO_S16SYS, buf.size(), audio_volume);
+	// NOX VF : copie du son original vers l'appli de doublage + voix anglaise baissée pendant le doublage
+	int nox_volume = audio_volume;
+	{
+		NoxVfBridge &vf = NoxVfBridge::get();
+		if(vf.connected)
+		{
+			QByteArray raw(reinterpret_cast<const char *>(og_buf), (int)(samples_count * audio_out_sample_size));
+			QMetaObject::invokeMethod(QCoreApplication::instance(), [raw]() { NoxVfBridge::get().send(raw); }, Qt::QueuedConnection);
+			nox_volume = audio_volume * vf.duck_pct.load() / 100;
+		}
+	}
+	if(nox_volume < SDL_MIX_MAXVOLUME)
+		SDL_MixAudioFormat((uint8_t *)buf.data(), (uint8_t *)og_buf, AUDIO_S16SYS, buf.size(), nox_volume);
 	else
 		memcpy(buf.data(), og_buf, (size_t)buf.size());
 #if CHIAKI_GUI_ENABLE_SPEEX

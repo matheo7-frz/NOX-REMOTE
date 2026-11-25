@@ -149,6 +149,7 @@ public:
     Q_INVOKABLE void grabInput();
     Q_INVOKABLE void takeScreenshot();
     Q_INVOKABLE void openCaptureFolder();
+    Q_INVOKABLE bool launchNoxVf();
     Q_INVOKABLE void releaseInput();
     Q_INVOKABLE void requestOverlayUpdate();
     Q_INVOKABLE void setOverlayInteractionActive(bool active);

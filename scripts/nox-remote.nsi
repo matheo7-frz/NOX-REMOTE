@@ -31,12 +31,16 @@ BrandingText "NOX REMOTE 2 - fait par math_0235"
 Section "Installer"
   ; ferme NOX REMOTE 2 s'il tourne (mise à jour)
   nsExec::Exec 'taskkill /F /IM ${EXENAME}'
+  nsExec::Exec 'taskkill /F /IM "NOX VF.exe"'
   SetOutPath "$INSTDIR"
   File /r "${APPDIR}\*.*"
   WriteUninstaller "$INSTDIR\Desinstaller.exe"
   CreateDirectory "$SMPROGRAMS\NOX REMOTE 2"
   CreateShortcut "$SMPROGRAMS\NOX REMOTE 2\NOX REMOTE 2.lnk" "$INSTDIR\${EXENAME}"
   CreateShortcut "$DESKTOP\NOX REMOTE 2.lnk" "$INSTDIR\${EXENAME}"
+  IfFileExists "$INSTDIR\NOX VF\NOX VF.exe" 0 +3
+    CreateShortcut "$SMPROGRAMS\NOX REMOTE 2\NOX VF (doublage FR).lnk" "$INSTDIR\NOX VF\NOX VF.exe"
+    CreateShortcut "$DESKTOP\NOX VF.lnk" "$INSTDIR\NOX VF\NOX VF.exe"
   WriteRegStr HKCU "${REGKEY}" "DisplayName" "${APPNAME}"
   WriteRegStr HKCU "${REGKEY}" "Publisher" "math_0235"
   WriteRegStr HKCU "${REGKEY}" "DisplayIcon" "$INSTDIR\${EXENAME}"
@@ -48,6 +52,7 @@ SectionEnd
 Section "Uninstall"
   nsExec::Exec 'taskkill /F /IM ${EXENAME}'
   Delete "$DESKTOP\NOX REMOTE 2.lnk"
+  Delete "$DESKTOP\NOX VF.lnk"
   RMDir /r "$SMPROGRAMS\NOX REMOTE 2"
   RMDir /r "$INSTDIR"
   DeleteRegKey HKCU "${REGKEY}"

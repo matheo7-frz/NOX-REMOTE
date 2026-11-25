@@ -33,6 +33,9 @@ extern "C" {
 #include <QDir>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QProcess>
+#include <QFileInfo>
+#include <QCoreApplication>
 #include <QUrl>
 #include <QCoreApplication>
 #include <QGuiApplication>
@@ -7746,6 +7749,14 @@ void QmlMainWindow::takeScreenshot()
         emit screenshotSaved(path);
     else
         emit screenshotFailed();
+}
+
+bool QmlMainWindow::launchNoxVf()
+{
+    const QString exe = QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("NOX VF/NOX VF.exe"));
+    if (!QFileInfo::exists(exe))
+        return false;
+    return QProcess::startDetached(exe, {}, QFileInfo(exe).absolutePath());
 }
 
 void QmlMainWindow::openCaptureFolder()
