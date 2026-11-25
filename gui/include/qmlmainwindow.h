@@ -187,6 +187,7 @@ signals:
     void menuRequested();
     void screenshotRequested();
     void noxMouseActivity();
+    void noxSubtitle(const QString &speaker, const QString &text);
     void screenshotSaved(const QString &path);
     void screenshotFailed();
     void directStreamChanged();

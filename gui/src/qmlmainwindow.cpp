@@ -7786,6 +7786,11 @@ void QmlMainWindow::setNoxBarRect(qreal x, qreal y, qreal w, qreal h, bool visib
 
 void QmlMainWindow::setNoxVf(bool on)
 {
+    NoxVfSetSubtitleCallback([this](const QString &who, const QString &text) {
+        emit noxSubtitle(who, text);
+    });
+    if (!on)
+        emit noxSubtitle(QString(), QString());
     NoxVfSetEnabled(on);
     if (on && !NoxVfIsConnected())
         launchNoxVfAuto();

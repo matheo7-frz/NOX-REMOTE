@@ -538,6 +538,13 @@ class NoxVF:
         threading.Thread(target=self._speaker, daemon=True).start()
         self._receiver()
 
+    def _send_line(self, line):
+        try:
+            if self.sock:
+                self.sock.sendall((line + "\n").encode("utf-8"))
+        except OSError:
+            pass
+
     def _send_duck(self, pct):
         try:
             if self.sock:
@@ -638,13 +645,15 @@ class NoxVF:
                 if who:
                     voice, spk = self.persos.data[who]["voice"]
                     label = who
+                    spk_name = who
                 else:
                     mode = self.voice_mode.get()
                     voice, spk = (gender if mode == "auto" else mode), None
                     label = "PNJ " + voice
+                    spk_name = "Habitante" if voice == "femme" else "Habitant"
                 self.ui_q.put(("line", (f"[{label}] {en}", fr)))
                 try:
-                    self.say_q.put_nowait((voice, spk, fr))
+                    self.say_q.put_nowait((voice, spk, fr, spk_name))
                 except queue.Full:
                     pass
             except Exception as e:  # noqa: BLE001
@@ -655,13 +664,14 @@ class NoxVF:
         import sounddevice as sd
         while self.running:
             try:
-                voice, spk, fr = self.say_q.get(timeout=0.5)
+                voice, spk, fr, spk_name = self.say_q.get(timeout=0.5)
             except queue.Empty:
                 continue
             try:
                 speed = 1.0 + 0.12 * self.say_q.qsize()           # parle un peu plus vite si retard
                 pcm, rate = self.engine.speak(voice, fr, min(speed, 1.4), spk)
                 self._send_duck(self.duck.get())
+                self._send_line("SUB " + spk_name + "|" + fr.replace("\n", " "))
                 sd.play(pcm, rate)
                 sd.wait()
             except Exception as e:  # noqa: BLE001
@@ -669,6 +679,7 @@ class NoxVF:
             finally:
                 if self.say_q.empty():
                     self._send_duck(100)
+                    self._send_line("SUB")
 
     def quit(self):
         self.running = False

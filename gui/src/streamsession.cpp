@@ -355,6 +355,9 @@ static void AudioFrameCb(int16_t *buf, size_t samples_count, void *user);
 #include <QTcpSocket>
 #include <QPointer>
 #include <atomic>
+#include <functional>
+
+static std::function<void(const QString &, const QString &)> g_nox_subtitle_cb;
 
 namespace {
 struct NoxVfBridge
@@ -398,6 +401,14 @@ struct NoxVfBridge
 					while(s->canReadLine())
 					{
 						const QByteArray line = s->readLine().trimmed();
+						if(line.startsWith("SUB"))
+						{
+							const QString t = QString::fromUtf8(line.mid(3)).trimmed();
+							const int bar = t.indexOf(QLatin1Char('|'));
+							if(g_nox_subtitle_cb)
+								g_nox_subtitle_cb(bar >= 0 ? t.left(bar) : QString(), bar >= 0 ? t.mid(bar + 1) : t);
+							continue;
+						}
 						if(line.startsWith("DUCK "))
 						{
 							bool ok = false;
@@ -412,6 +423,8 @@ struct NoxVfBridge
 					{
 						connected = false;
 						duck_pct = 100;
+						if(g_nox_subtitle_cb)
+							g_nox_subtitle_cb(QString(), QString());
 					}
 					s->deleteLater();
 				});
@@ -1468,6 +1481,11 @@ void StreamSession::SendFeedbackState()
 	}
 	chiaki_controller_state_or(&state, &state, &dpad_touch_state);
 	chiaki_session_set_controller_state(&session, &state);
+}
+
+void NoxVfSetSubtitleCallback(std::function<void(const QString &, const QString &)> cb)
+{
+	g_nox_subtitle_cb = std::move(cb);
 }
 
 void NoxVfSetEnabled(bool on)

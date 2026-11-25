@@ -36,6 +36,8 @@
 
 // NOX VF (doublage français)
 void NoxVfSetEnabled(bool on);
+#include <functional>
+void NoxVfSetSubtitleCallback(std::function<void(const QString &, const QString &)> cb);
 bool NoxVfIsConnected();
 #include <QImage>
 #include <QMouseEvent>
