@@ -993,27 +993,25 @@ Item {
     }
 
     // ---------- Barre NOX (apparaît quand la souris bouge, comme Remote Play) ----------
-    Item {
+    // Fenêtre séparée par-dessus le jeu : marche avec tous les rendus (Vulkan / OpenGL)
+    // et n'apparaît pas dans la capture OBS de la fenêtre NOX REMOTE 2.
+    Window {
         id: noxBar
         property bool shown: false
-        z: 900
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: shown ? 22 : -10
-        width: Math.min(parent.width - 40, 1180)
+        transientParent: Chiaki.window
+        flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus
+        color: "transparent"
+        width: Math.max(600, Math.min(Chiaki.window.width - 40, 1180))
         height: 96
-        opacity: shown ? 1 : 0
-        visible: opacity > 0.01 && !useSeparateMenuWindow
-        Behavior on opacity { NumberAnimation { duration: 180 } }
-        Behavior on anchors.bottomMargin { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+        x: Chiaki.window.x + Math.round((Chiaki.window.width - width) / 2)
+        y: Chiaki.window.y + Chiaki.window.height - height - 22
+        visible: shown && !!Chiaki.session && !sessionLoading
 
         function updateRect() {
-            var p = noxBar.mapToItem(null, 0, 0);
-            Chiaki.window.setNoxBarRect(p.x, p.y, noxBar.width, noxBar.height, noxBar.shown && noxBar.visible);
+            // seulement pour réafficher le curseur pendant que la barre est visible
+            Chiaki.window.setNoxBarRect(0, 0, 0, 0, noxBar.shown);
         }
         onShownChanged: updateRect()
-        onWidthChanged: updateRect()
-        onYChanged: updateRect()
 
         Timer {
             id: noxBarHide
@@ -1126,7 +1124,7 @@ Item {
         }
     }
 
-    Component.onDestruction: Chiaki.window.setNoxBarRect(0, 0, 0, 0, false)
+    Component.onDestruction: { noxBar.shown = false; Chiaki.window.setNoxBarRect(0, 0, 0, 0, false); }
 
     Timer {
         id: noxShootTimer
@@ -1617,7 +1615,7 @@ Item {
         }
 
         function onNoxMouseActivity() {
-            if (useSeparateMenuWindow || !Chiaki.session || menuController.open || sessionLoading || sessionError)
+            if (!Chiaki.session || menuController.open || sessionLoading || sessionError)
                 return;
             noxBar.shown = true;
             noxBar.updateRect();
