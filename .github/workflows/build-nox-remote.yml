@@ -9,43 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  noxvf:
-    name: Fabrication NOX VF (doublage FR)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Dependances
-        run: |
-          python -m pip install --upgrade pip
-          pip install faster-whisper ctranslate2 sentencepiece piper-tts sherpa-onnx mss pillow winrt-runtime winrt-Windows.Media.Ocr winrt-Windows.Globalization winrt-Windows.Graphics.Imaging winrt-Windows.Storage.Streams winrt-Windows.Foundation winrt-Windows.Foundation.Collections sounddevice webrtcvad-wheels numpy requests pyinstaller
-      - name: Test des imports
-        run: |
-          python -c "import faster_whisper, ctranslate2, sentencepiece, sherpa_onnx, sounddevice, webrtcvad, numpy, requests; from piper import PiperVoice; print('OK')"
-      - name: Test de la lecture d'ecran (OCR)
-        run: python noxvf\test_ocr.py
-
-      - name: PyInstaller
-        run: |
-          copy gui\chiaking.ico noxvf\noxvf.ico
-          pyinstaller --noconfirm --windowed --name "NOX VF" --icon noxvf\noxvf.ico --add-data "noxvf\noxvf.ico;." --collect-all faster_whisper --collect-all ctranslate2 --collect-all piper --collect-all onnxruntime --collect-all sentencepiece --collect-all webrtcvad --collect-all sounddevice --collect-all sherpa_onnx --collect-all winrt --collect-all mss --collect-data _sounddevice_data noxvf\noxvf.py
-      - name: Test de l'exe (demarre et se ferme)
-        run: |
-          $p = Start-Process "dist\NOX VF\NOX VF.exe" -PassThru
-          Start-Sleep -Seconds 12
-          if ($p.HasExited) { echo "NOX VF a plante au demarrage (code $($p.ExitCode))"; exit 1 }
-          Stop-Process -Id $p.Id -Force
-          echo "NOX VF demarre bien"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: noxvf
-          path: dist/NOX VF
-
   build-win_x64:
     name: Fabrication NOX REMOTE
-    needs: noxvf
     runs-on: windows-latest
     env:
       CC: clang-cl.exe
@@ -272,12 +237,6 @@ jobs:
           path: ${{ env.RELEASE_PACKAGE_PATH }}
           if-no-files-found: error
           retention-days: 7
-
-      - name: Recuperer NOX VF
-        uses: actions/download-artifact@v4
-        with:
-          name: noxvf
-          path: chiaki-ng-Win/NOX VF
 
       - name: Fabriquer l'installeur (NSIS)
         run: |

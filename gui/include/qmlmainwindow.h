@@ -151,10 +151,7 @@ public:
     Q_INVOKABLE void grabInput();
     Q_INVOKABLE void takeScreenshot();
     Q_INVOKABLE void openCaptureFolder();
-    Q_INVOKABLE bool launchNoxVf();
     Q_INVOKABLE void setNoxBarRect(qreal x, qreal y, qreal w, qreal h, bool visible);
-    Q_INVOKABLE void setNoxVf(bool on);
-    Q_INVOKABLE bool noxVfConnected() const;
     Q_INVOKABLE void releaseInput();
     Q_INVOKABLE void requestOverlayUpdate();
     Q_INVOKABLE void setOverlayInteractionActive(bool active);
@@ -187,7 +184,6 @@ signals:
     void menuRequested();
     void screenshotRequested();
     void noxMouseActivity();
-    void noxSubtitle(const QString &speaker, const QString &text);
     void screenshotSaved(const QString &path);
     void screenshotFailed();
     void directStreamChanged();

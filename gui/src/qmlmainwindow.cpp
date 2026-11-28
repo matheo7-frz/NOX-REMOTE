@@ -7751,24 +7751,6 @@ void QmlMainWindow::takeScreenshot()
         emit screenshotFailed();
 }
 
-static bool startNoxVfProcess(const QStringList &args)
-{
-    const QString exe = QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("NOX VF/NOX VF.exe"));
-    if (!QFileInfo::exists(exe))
-        return false;
-    return QProcess::startDetached(exe, args, QFileInfo(exe).absolutePath());
-}
-
-static void launchNoxVfAuto()
-{
-    startNoxVfProcess({QStringLiteral("--auto")});
-}
-
-bool QmlMainWindow::launchNoxVf()
-{
-    return startNoxVfProcess({});
-}
-
 void QmlMainWindow::setNoxBarRect(qreal x, qreal y, qreal w, qreal h, bool visible)
 {
     nox_bar_rect = QRectF(x, y, w, h);
@@ -7782,23 +7764,6 @@ void QmlMainWindow::setNoxBarRect(qreal x, qreal y, qreal w, qreal h, bool visib
         else if (has_video && settings->GetHideCursor())
             setCursor(Qt::BlankCursor);
     }
-}
-
-void QmlMainWindow::setNoxVf(bool on)
-{
-    NoxVfSetSubtitleCallback([this](const QString &who, const QString &text) {
-        emit noxSubtitle(who, text);
-    });
-    if (!on)
-        emit noxSubtitle(QString(), QString());
-    NoxVfSetEnabled(on);
-    if (on && !NoxVfIsConnected())
-        launchNoxVfAuto();
-}
-
-bool QmlMainWindow::noxVfConnected() const
-{
-    return NoxVfIsConnected();
 }
 
 void QmlMainWindow::openCaptureFolder()

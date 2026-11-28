@@ -199,15 +199,6 @@ Rectangle {
             onClicked: home.applyHdAi(!livePrefs.hdAi)
         }
         TopButton {
-            text: qsTr("Doublage FR")
-            onClicked: {
-                if (!Chiaki.window.launchNoxVf())
-                    infoLabel.text = qsTr("NOX VF n'est pas installé : réinstalle NOX REMOTE 2.");
-                else
-                    infoLabel.text = qsTr("NOX VF s'ouvre : clique sur « Démarrer le doublage », puis lance ta partie.");
-            }
-        }
-        TopButton {
             text: qsTr("Guide Live")
             onClicked: liveGuide.open()
         }
@@ -394,11 +385,9 @@ Rectangle {
                         + "<ul><li>Le bouton <b>Image HD IA</b> agrandit l'image avec un petit réseau de neurones (FSRCNNX), gratuit, calculé par ta carte graphique.</li>"
                         + "<li>Il sert quand ton écran est plus grand que l'image reçue : flux 720p sur écran 1080p, ou flux 1080p sur écran 1440p / 4K. Astuce anti-coupure : flux en 720p + Image HD IA.</li>"
                         + "<li>Si ça saccade, coupe-le : il demande une carte graphique correcte.</li></ul>"
-                        + "<h3>Doublage FR (NOX VF)</h3>"
-                        + "<ul><li>Clique sur <b>Doublage FR</b>, puis <b>Démarrer le doublage</b>. La 1re fois, il télécharge les voix et l'IA (environ 1 Go, une seule fois).</li>"
-                        + "<li>Les dialogues anglais sont traduits et lus en français, avec la voix anglaise baissée en dessous, comme à la télé.</li>"
-                        + "<li>Il y a 2 à 4 secondes de retard, et la musique peut gêner la reconnaissance. Les sous-titres du jeu restent le plus fiable.</li>"
-                        + "<li>Pour OBS / TikTok : ajoute aussi la capture audio de <b>NOX VF.exe</b>, et la fenêtre <b>NOX VF - sous-titres</b> si tu veux les sous-titres en live.</li></ul>"
+                        + "<h3>⚡ Faible latence</h3>"
+                        + "<ul><li>Dans la barre du bas : coupe le V-Sync et réduit le retard du son. Le jeu répond plus vite, l'image peut parfois se déchirer légèrement.</li>"
+                        + "<li>Pour le moins de retard possible : PS5 et PC en câble Ethernet, 1080p 60 i/s, Faible latence ON.</li></ul>"
                         + "<h3>Si ça coupe quand même</h3>"
                         + "<ul><li>Réglages ⚙️ → baisse le <b>débit (bitrate)</b> ou passe en <b>720p</b>.</li>"
                         + "<li>Si l'écran est noir dans OBS : change la méthode de capture, ou lance OBS en même temps que NOX REMOTE 2 (pas en administrateur).</li></ul>")

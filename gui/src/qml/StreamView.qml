@@ -88,7 +88,6 @@ Item {
     StackView.onDeactivated: Chiaki.window.keepVideo = false
 
     Component.onCompleted: {
-        Chiaki.window.setNoxVf(noxPrefs.vfOn);
         updateSeparateMenuGeometry();
         updateOverlayInteractionActive();
         Chiaki.window.setStatsOverlayActive(streamStatsVisible);
@@ -979,8 +978,7 @@ Item {
         id: noxPrefs
         category: "noxremote"
         property int brightness: 50
-        property bool vfOn: false
-        property bool vfSubs: true
+        property bool lowLat: false
         property bool hdAi: false
     }
 
@@ -1110,12 +1108,13 @@ Item {
             }
 
             BarToggle {
-                text: on ? qsTr("VF : ON") : qsTr("VF : OFF")
-                on: noxPrefs.vfOn
+                text: on ? qsTr("⚡ Faible latence : ON") : qsTr("⚡ Faible latence : OFF")
+                on: noxPrefs.lowLat
                 onClicked: {
-                    noxPrefs.vfOn = !noxPrefs.vfOn;
-                    Chiaki.window.setNoxVf(noxPrefs.vfOn);
-                    noxToast.show(noxPrefs.vfOn ? qsTr("🇫🇷 Doublage français activé") : qsTr("Doublage français coupé"));
+                    noxPrefs.lowLat = !noxPrefs.lowLat;
+                    Chiaki.settings.vSyncEnabled = !noxPrefs.lowLat;          // V-Sync coupé = image plus réactive
+                    Chiaki.settings.audioBufferSize = noxPrefs.lowLat ? 5760 : 9600;  // son moins en retard
+                    noxToast.show(noxPrefs.lowLat ? qsTr("⚡ Faible latence activée (effet complet à la prochaine connexion)") : qsTr("Mode normal"));
                     noxBarHide.restart();
                 }
             }
@@ -1128,39 +1127,6 @@ Item {
     }
 
     Component.onDestruction: Chiaki.window.setNoxBarRect(0, 0, 0, 0, false)
-
-    // Sous-titres du doublage : « Lucia : ... », « Habitant : ... »
-    Rectangle {
-        id: noxSubBox
-        z: 850
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: noxBar.shown ? 140 : 48
-        Behavior on anchors.bottomMargin { NumberAnimation { duration: 180 } }
-        width: Math.min(noxSubLabel.implicitWidth + 44, parent.width * 0.86)
-        height: noxSubLabel.implicitHeight + 22
-        radius: 12
-        color: "#b3000000"
-        opacity: noxSub.text.length && noxPrefs.vfOn && noxPrefs.vfSubs ? 1 : 0
-        visible: opacity > 0.01
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-        QtObject {
-            id: noxSub
-            property string speaker: ""
-            property string text: ""
-        }
-        Label {
-            id: noxSubLabel
-            anchors.centerIn: parent
-            width: Math.min(implicitWidth, noxSubBox.parent.width * 0.86 - 44)
-            wrapMode: Text.WordWrap
-            horizontalAlignment: Text.AlignHCenter
-            textFormat: Text.StyledText
-            font.pixelSize: 24
-            color: "white"
-            text: (noxSub.speaker.length ? "<font color='#ffd45a'><b>" + noxSub.speaker + " :</b></font> " : "") + noxSub.text
-        }
-    }
 
     Timer {
         id: noxShootTimer
@@ -1648,11 +1614,6 @@ Item {
             } else if (Chiaki.session) {
                 sessionLoading = !(Chiaki.settings.audioVideoDisabled & 0x02);
             }
-        }
-
-        function onNoxSubtitle(speaker, text) {
-            noxSub.speaker = speaker;
-            noxSub.text = text;
         }
 
         function onNoxMouseActivity() {
